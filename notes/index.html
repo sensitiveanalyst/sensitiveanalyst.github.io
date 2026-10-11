@@ -1,0 +1,91 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Notes | coh-thread</title>
+<meta name="description" content="Theory notes on estimation, Lyapunov methods and geometric optimal control.">
+<script>document.documentElement.className += " js";</script>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=IBM+Plex+Sans:wght@400;500&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../style.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<nav class="top">
+  <a class="mark" href="../index.html">coh-thread</a>
+  <span class="links">
+    <a href="../library.html">Library</a>
+    <a href="../notes/index.html">Notes</a>
+    <a href="../code/index.html">Code</a>
+    <a href="../overview.html">Overview</a>
+    <a href="../index.html#contact">Contact</a>
+    
+  </span>
+</nav>
+<main id="main">
+<h1>Notes</h1>
+<p>Rough algorithm sketches. Notes 01-06 are not implemented. Notes 07-10 say in
+their status line which parts are implemented and tested. Each note states the
+goal, the model, the algorithm in pseudocode, the stability or consistency
+argument, and what is unresolved. Treat the claims as a reading list and a
+design starting point, not as verified results. Claims marked <em>(literature)</em>
+are recalled from memory and need checking before they are cited.</p>
+<table>
+<thead>
+<tr>
+<th>Note</th>
+<th>Builds on</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>01_invariant_ekf.md</td>
+<td><code>kalman.py</code>, <code>so3.py</code></td>
+</tr>
+<tr>
+<td>02_clf_cbf_qp.md</td>
+<td><code>lyapunov.py</code></td>
+</tr>
+<tr>
+<td>03_geometric_mpc.md</td>
+<td><code>geometric.py</code>, <code>so3.py</code></td>
+</tr>
+<tr>
+<td>04_adaptive_lyapunov.md</td>
+<td><code>lyapunov.py</code>, <code>geometric.py</code></td>
+</tr>
+<tr>
+<td>05_estimation_control_loop.md</td>
+<td>everything above</td>
+</tr>
+<tr>
+<td>06_attitude_observer.md</td>
+<td><code>so3.py</code>, <code>geometric.py</code></td>
+</tr>
+<tr>
+<td>07_pontryagin_outline.md</td>
+<td><code>pmp.py</code>, <code>smooth.py</code></td>
+</tr>
+<tr>
+<td>08_geometric_pmp.md</td>
+<td><code>geometric_pmp.py</code>, <code>so3.py</code></td>
+</tr>
+<tr>
+<td>09_smoothing_kinks_and_monitors.md</td>
+<td><code>smooth.py</code>, <code>continuity.py</code>, <code>pmp.py</code></td>
+</tr>
+<tr>
+<td>10_flat_connections_characteristics.md</td>
+<td><code>geometric_pmp.py</code>, <code>lyapunov.py</code></td>
+</tr>
+</tbody>
+</table><h2>Read the notes</h2><ul class="cards"><li><a href="01_invariant_ekf.html">01 Invariant EKF on a matrix Lie group (sketch)</a></li><li><a href="02_clf_cbf_qp.html">02 CLF-CBF quadratic program safety filter (sketch)</a></li><li><a href="03_geometric_mpc.html">03 Geometric MPC on SO(3) / SE(3) (sketch)</a></li><li><a href="04_adaptive_lyapunov.html">04 Adaptive geometric attitude control (sketch)</a></li><li><a href="05_estimation_control_loop.html">05 Estimation to control loop (sketch)</a></li><li><a href="06_attitude_observer.html">06 Nonlinear complementary attitude observer on SO(3) (sketch)</a></li><li><a href="07_pontryagin_outline.html">07 Pontryagin minimum principle: rough outline</a></li><li><a href="08_geometric_pmp.html">08 Geometric PMP on manifolds and Lie groups</a></li><li><a href="09_smoothing_kinks_and_monitors.html">09 Smoothing kinks and continuity breaks in monitors</a></li><li><a href="10_flat_connections_characteristics.html">10 Flat connections, Lie algebras and characteristics</a></li></ul>
+</main>
+<footer>
+  <p>coh-thread &middot; a foundation for high-consequence operations &middot;
+     <a href="mailto:realsaimohanty@gmail.com">realsaimohanty@gmail.com</a> &middot; <a href="../code/index.html">read the source</a></p>
+  <p>Research-grade, uncertified code. Use it as one layer of protection, never the only one.</p>
+</footer>
+
+</body>
+</html>

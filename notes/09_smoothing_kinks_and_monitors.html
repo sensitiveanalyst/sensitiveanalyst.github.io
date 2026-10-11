@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>09 Smoothing kinks and continuity breaks in monitors | coh-thread</title>
+
+<script>document.documentElement.className += " js";</script>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=IBM+Plex+Sans:wght@400;500&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../style.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<nav class="top">
+  <a class="mark" href="../index.html">coh-thread</a>
+  <span class="links">
+    <a href="../library.html">Library</a>
+    <a href="../notes/index.html">Notes</a>
+    <a href="../code/index.html">Code</a>
+    <a href="../overview.html">Overview</a>
+    <a href="../index.html#contact">Contact</a>
+    
+  </span>
+</nav>
+<main id="main">
+<h1>09 Smoothing kinks and continuity breaks in monitors</h1>
+<p><strong>Status.</strong> Implemented and tested: <code>smooth.py</code>, <code>continuity.py</code>, the smooth blend in
+<code>PendulumSwingUp</code>, the smoothed quadrotor normalisations, and the barrier-smoothed PMP in <code>pmp.py</code> / <code>geometric_pmp.py</code>. Items
+marked <em>sketch</em> are not implemented; <em>(literature)</em> means recalled from memory.</p>
+<p><strong>Reading of the request.</strong> "Monitoring system" is taken as the runtime signals around a
+controller: thresholds, mode flags, guards, clipped outputs, and temporal-logic
+robustness monitors. A continuity break in one of them is a jump (C0) or a kink (C1) in a
+logged signal. The plan: find the breaks, replace each by a smooth modifier, check again.</p>
+<h2>1. Inventory of breaks in this suite</h2>
+<table>
+<thead>
+<tr>
+<th>Where</th>
+<th>Break</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>PendulumSwingUp.control</code></td>
+<td>hard LQR/pump switch (C0), clip (C1)</td>
+<td>fixed by <code>blend_width &gt; 0</code></td>
+</tr>
+<tr>
+<td><code>geometric.desired_attitude</code></td>
+<td><code>-A/|A|</code> undefined at A = 0, <code>b2d</code> normalisation at b1d parallel b3d</td>
+<td>fixed by <code>thrust_eps</code> and <code>heading="tilt_twist"</code>, section 7</td>
+</tr>
+<tr>
+<td><code>so3.log_so3</code></td>
+<td>branch at rotation angle pi (cut locus)</td>
+<td>inherent, see section 6</td>
+</tr>
+<tr>
+<td><code>PendulumSwingUp.wrap</code></td>
+<td>jump at +-pi in the angle signal</td>
+<td>inherent to an angle; energy uses cos</td>
+</tr>
+<tr>
+<td>PMP with a box on u</td>
+<td><code>u* = clip(-g/r)</code>, bang-bang</td>
+<td>barrier cost, section 3</td>
+</tr>
+<tr>
+<td>monitors</td>
+<td>threshold flags, min/max robustness</td>
+<td>section 4</td>
+</tr>
+</tbody>
+</table>
+<h2>2. Modifiers (all C-infinity, one width parameter each)</h2>
+<table>
+<thead>
+<tr>
+<th>Non-smooth</th>
+<th>Smooth</th>
+<th>Error and property</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>abs(x)</code></td>
+<td><code>smooth_abs = sqrt(x^2+e^2)-e</code></td>
+<td><code>0 &lt;= abs - value &lt;= e</code></td>
+</tr>
+<tr>
+<td><code>sign(x)</code>, <code>v/abs(v)</code></td>
+<td><code>smooth_sign</code>, <code>smooth_normalize</code></td>
+<td>defined at 0, bounded gradient</td>
+</tr>
+<tr>
+<td><code>max(x,0)</code></td>
+<td><code>softplus</code></td>
+<td>within <code>e ln 2</code>, never below</td>
+</tr>
+<tr>
+<td><code>max_i</code>, <code>min_i</code></td>
+<td><code>smooth_max</code>, <code>smooth_min</code> (log-sum-exp)</td>
+<td>max never under, min never over, within <code>e ln n</code></td>
+</tr>
+<tr>
+<td><code>clip(k x, -a, a)</code></td>
+<td><code>tanh_sat(x, a, k)</code></td>
+<td>bounded by a, gain k at 0</td>
+</tr>
+<tr>
+<td><code>if s &gt; c: b else a</code></td>
+<td><code>smooth_switch</code> on <code>bump_step</code></td>
+<td>exactly a below the band, exactly b above</td>
+</tr>
+<tr>
+<td><code>|u| &lt;= u_max</code> in a cost</td>
+<td><code>barrier_cost</code> / <code>barrier_control</code></td>
+<td>section 3</td>
+</tr>
+<tr>
+<td>STL always / eventually</td>
+<td><code>smooth_always</code> / <code>smooth_eventually</code></td>
+<td>one-sided, so sound</td>
+</tr>
+</tbody>
+</table>
+<p>Every modifier trades exactness for differentiability: the error is O(width) and
+derivatives grow like 1/width, so integrators and shooting get stiffer as the width
+shrinks. Lower it by continuation, not in one step.</p>
+<h2>3. Smoothing inside the PMP: modify the cost, not the control law</h2>
+<p>For a quadratic cost <code>r u^2 / 2</code> and a box <code>|u| &lt;= u_max</code> the minimiser of <code>H</code> is <code>clip(-g/r)</code>,
+where <code>g</code> is the part of <code>dH/du</code> that does not come from L. Instead of replacing the clip
+by a tanh by hand, choose the input cost</p>
+<pre><code>w(u) = (r u_max^2 / 2) [(1+s) ln(1+s) + (1-s) ln(1-s)],   s = u / u_max
+w'(u) = r u_max atanh(s)   =&gt;   argmin_u  w(u) + g u  =  -u_max tanh(g / (r u_max))
+</code></pre>
+<p>The tanh law is then the exact Hamiltonian minimiser of a smooth, strictly convex
+problem, so the minimum principle, the conservation of H and the symplectic structure all
+hold for the smoothed problem. A tanh patched into the law would break the costate equations.
+- <code>r -&gt; 0</code>: bang-bang. Large <code>r</code>: quadratic cost <code>r u^2 / 2</code>.
+- With fixed T and no other cost, <code>r</code> only scales the objective, so it is not a width.
+  It becomes one when time is in the cost (<code>1 + w</code>, free T). Tests rely on that.
+- Rigorous bracket for the min-time double integrator (tested): <code>T* &lt;= T_eps &lt;= T*(1 + e ln 2)</code>,
+  because smoothed controls obey the bound and the bang-bang control is feasible.
+  The attitude analogue (spherical body, rotation about the cube diagonal) has the same
+  bracket with <code>3 r ln 2</code>.
+- Continuation: solve at large r, shrink, warm-start each solve. <em>(literature: Bertrand and
+  Epenoy 2002 on smoothing bang-bang problems.)</em>
+- L1 and fuel cost, state constraints <em>(sketch)</em>: replace <code>|u|</code> by <code>smooth_abs</code>, and
+  <code>c(x) &lt;= 0</code> by a log barrier <code>-e log(-c)</code> so the costate stays continuous.</p>
+<h2>4. Monitors</h2>
+<p><strong>Detect.</strong> <code>find_breaks(t, y)</code> reports jumps and kinks. A break is whatever the sampling
+cannot resolve as smooth, so a rounded corner many samples wide is not reported. On a
+clipped sine it finds each of the 8 kinks once, with slope change 10.4 against the exact
+<code>12 cos(pi/6) = 10.39</code>. On the hard-switch pendulum it finds 7 breaks in u(t); with
+<code>blend_width = 0.15</code> it finds none and the swing-up still reaches the top.</p>
+<p><strong>Replace.</strong>
+- Threshold flag or guard: <code>smooth_switch(s, lo, hi, a, b)</code>. Outside the band it equals
+  the old behaviour exactly, which keeps the verified region unchanged.
+- Convex-blend lemma: for control-affine dynamics and one shared Lyapunov function V,
+  <code>V-dot</code> is affine in u, so a blend of two controllers that each satisfy
+  <code>V-dot &lt;= -gamma V</code> also satisfies it. The pendulum's LQR and energy laws use different
+  V, so that lemma does not cover its blend band; only simulation does.
+- STL robustness: <code>always</code> is a min over time, <code>eventually</code> a max. Soft versions are
+  differentiable, so MPC and shooting can differentiate through the monitor, and
+  <code>smooth_always &gt;= 0</code> implies the true robustness is <code>&gt;= 0</code>. <em>(literature: Pant, Abbas,
+  Mangharam, "Smooth Operator", 2017.)</em>
+- Sliding-mode <code>sign(s)</code>: <code>smooth_sign</code> gives a boundary layer. Exact convergence becomes
+  ultimate boundedness of order e.
+- Hysteresis and dwell time are hybrid by design; smoothing them removes the guarantee
+  they exist to give. Smooth the vector field, keep the logic.</p>
+<h2>5. Checklist before trusting a smoothed loop</h2>
+<ol>
+<li>Re-derive the Lyapunov decrease with margin; <code>V-dot &lt;= -gamma V</code> may now hold only
+   outside a band of width O(e).</li>
+<li>Smoothing moves equilibria and invariant sets by O(e). Safe sets need one-sided
+   (inner) approximations, as <code>smooth_min</code> provides.</li>
+<li>Run <code>find_breaks</code> on the closed-loop signals again.</li>
+<li>Sweep the width and look for stiffness or a lost stability margin.</li>
+</ol>
+<h2>6. What smoothing cannot fix</h2>
+<p>There is no continuous feedback that globally stabilises a point on SO(3): the topology
+forces a discontinuity or a bad equilibrium. <em>(literature: Bhat and Bernstein 2000.)</em>
+<code>geometric.py</code> already accepts the best continuous result, almost-global convergence;
+smoothing only moves the unavoidable break to a measure-zero set. Brockett's condition
+gives the same kind of obstruction for nonholonomic systems <em>(literature)</em>. Alternatives
+are hybrid control or time-varying feedback.</p>
+<h2>7. Quadrotor normalisations (<code>QuadrotorSE3Controller</code>)</h2>
+<p><code>smooth_normalize</code> is the wrong tool here: <code>v / sqrt(|v|^2 + e^2)</code> is shorter than 1, so the
+desired attitude would stop being a rotation matrix and the geometric error would lose its
+meaning. The fixes keep <code>Rd</code> exactly in SO(3). Both singularities are topological, so they
+are relocated out of the flight envelope, not removed.</p>
+<p><strong>Thrust direction, <code>b3d = -A/|A|</code>.</strong> No smooth map from commands to unit vectors can equal
+<code>-A/|A|</code> outside a ball: restricted to a sphere it would have degree 1 yet extend over the
+ball. The fix shifts the command first, <code>A_s = ((1+k) A_x, (1+k) A_y, A_z - k m g)</code>,
+<code>k = thrust_eps</code>, and normalises <code>A_s</code>. For an upward thrust command (<code>A . e3 &lt;= 0</code>) <code>A_s</code>
+is never zero, so <code>b3d</code> is smooth through <code>A = 0</code> (level attitude there). It is singular only
+at the downward command <code>A = k m g e3</code>, which needs negative thrust. <em>(derived, tested)</em>
+- Hover is unchanged: <code>A = -m g e3</code> gives <code>b3d = e3</code>, <code>f = m g</code>.
+- The <code>(1+k)</code> on the horizontal part keeps tilt per unit horizontal error equal to the
+  paper's to first order. Without it the tilt is multiplied by <code>1/(1+k)</code> (measured 0.98039
+  for k = 0.02) and the step response converges visibly slower.
+- Away from hover the thrust direction differs by O(k): at the default k = 0.02 the 1.2 m
+  step trajectory stays within 1 cm of the exact controller.
+- <code>f = -A . R e3</code> still uses the unshifted A.</p>
+<p><strong>Heading, <code>b2d = b3d x b1d / |.|</code>.</strong> The paper's frame is singular at <code>b3d = +-b1d</code>, and
+as the thrust axis passes the heading the frame flips by 180 degrees (a jump of size 2 in
+the entries of <code>Rd</code>; <code>find_breaks</code> finds it at exactly pi/2). By the hairy-ball theorem every
+frame field on the sphere has a singularity; this one has two. <code>heading="tilt_twist"</code> uses
+<code>Rd = Rmin(e3 -&gt; b3d) Rz(psi)</code> with <code>psi = atan2(b1d_y, b1d_x)</code>, which has one, at <code>b3d = -e3</code>
+(thrust straight down). It is continuous through the heading and out to 3.0 rad of tilt in
+the sweep test. It needs a heading reference with a horizontal component.
+- Same as the paper for pure pitch and pure roll (difference 2e-16, tested).
+- For mixed tilt <code>theta</code> the frames differ by about <code>theta^2/4</code> (second order, measured).</p>
+<p><strong>Defaults changed.</strong> <code>thrust_eps=0.02, heading="tilt_twist"</code>. <code>thrust_eps=0,
+heading="projection"</code> reproduces the paper's <code>Rd</code> exactly (tested against a copy of the formula).</p>
+<p><strong>Not proven.</strong> Lee, Leok and McClamroch's Lyapunov argument assumes the exact <code>b3d</code>. The
+shift adds a perturbation of order k that vanishes at hover (the equilibrium is unchanged),
+and simulation shows convergence from a 1 m step and from 120 degrees of initial tilt, but
+there is no stability proof for the modified controller.</p><div class="pager"><a href="08_geometric_pmp.html">&larr; 08 Geometric PMP on manifolds and Lie groups</a><a href="10_flat_connections_characteristics.html">10 Flat connections, Lie algebras and characteristics &rarr;</a></div>
+</main>
+<footer>
+  <p>coh-thread &middot; a foundation for high-consequence operations &middot;
+     <a href="mailto:realsaimohanty@gmail.com">realsaimohanty@gmail.com</a> &middot; <a href="../code/index.html">read the source</a></p>
+  <p>Research-grade, uncertified code. Use it as one layer of protection, never the only one.</p>
+</footer>
+
+</body>
+</html>

@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>06 Nonlinear complementary attitude observer on SO(3) (sketch) | coh-thread</title>
+
+<script>document.documentElement.className += " js";</script>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=IBM+Plex+Sans:wght@400;500&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../style.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<nav class="top">
+  <a class="mark" href="../index.html">coh-thread</a>
+  <span class="links">
+    <a href="../library.html">Library</a>
+    <a href="../notes/index.html">Notes</a>
+    <a href="../code/index.html">Code</a>
+    <a href="../overview.html">Overview</a>
+    <a href="../index.html#contact">Contact</a>
+    
+  </span>
+</nav>
+<main id="main">
+<h1>06 Nonlinear complementary attitude observer on SO(3) (sketch)</h1>
+<p><strong>Goal.</strong> A cheap attitude estimate that needs no covariance propagation and
+has a Lyapunov convergence argument, as a fallback or initialiser for note 01.</p>
+<p><strong>Inputs.</strong> Gyro w_m = W + b + noise. Body-frame direction measurements v_i
+(gravity from the accelerometer, magnetic field from the magnetometer) with
+known inertial references v_i0.</p>
+<p><strong>Error signal.</strong> For measured directions the rotation mismatch is captured by</p>
+<pre><code>w_mes = sum_i k_i * ( v_i x (R_hat^T v_i0) )
+</code></pre>
+<p>which is zero when R_hat maps every reference onto its measurement.</p>
+<h2>Algorithm</h2>
+<pre><code>init R_hat = I (or from TRIAD / QUEST on the first sample), b_hat = 0
+loop:
+  w_mes = sum_i k_i * cross(v_i, R_hat^T v_i0)
+  R_hat &lt;- R_hat * exp( (w_m - b_hat + kP * w_mes) dt )     # stays on SO(3)
+  b_hat &lt;- b_hat - kI * w_mes * dt
+</code></pre>
+<p>Gains kP (proportional) and kI (bias) trade convergence speed against noise.
+Both are positive; kI much smaller than kP.</p>
+<h2>Argument</h2>
+<p>Take V = sum_i k_i/2 |v_i0 - R_hat v_i|^2 + (1/2 kI) |b_tilde|^2 with
+b_tilde = b_hat - b. Then V_dot &lt;= 0 under the update above, so the
+estimate converges almost globally when at least two non-collinear references
+are available. With a single reference (gravity only) the yaw is
+unobservable and only the tilt converges.</p>
+<h2>Tests to write</h2>
+<ul>
+<li>Constant bias on the gyro: b_hat should converge to it while R_hat tracks.</li>
+<li>Start 170 degrees from the truth: convergence should still occur, slowly.</li>
+<li>Feed it the attitude from <code>GeometricAttitudeController.simulate</code> with
+  synthetic gyro and accelerometer noise and compare with the EKF.</li>
+</ul>
+<h2>Open questions</h2>
+<ul>
+<li>Accelerometer corruption during manoeuvres: gate or down-weight k_gravity
+  with the measured specific-force norm.</li>
+<li>Magnetic disturbance indoors: decide whether to drop the magnetometer term.</li>
+</ul><div class="pager"><a href="05_estimation_control_loop.html">&larr; 05 Estimation to control loop (sketch)</a><a href="07_pontryagin_outline.html">07 Pontryagin minimum principle: rough outline &rarr;</a></div>
+</main>
+<footer>
+  <p>coh-thread &middot; a foundation for high-consequence operations &middot;
+     <a href="mailto:realsaimohanty@gmail.com">realsaimohanty@gmail.com</a> &middot; <a href="../code/index.html">read the source</a></p>
+  <p>Research-grade, uncertified code. Use it as one layer of protection, never the only one.</p>
+</footer>
+
+</body>
+</html>

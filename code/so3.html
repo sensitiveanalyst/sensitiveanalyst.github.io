@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>so3.py | coh-thread</title>
+
+<script>document.documentElement.className += " js";</script>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=IBM+Plex+Sans:wght@400;500&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../style.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<nav class="top">
+  <a class="mark" href="../index.html">coh-thread</a>
+  <span class="links">
+    <a href="../library.html">Library</a>
+    <a href="../notes/index.html">Notes</a>
+    <a href="../code/index.html">Code</a>
+    <a href="../overview.html">Overview</a>
+    <a href="../index.html#contact">Contact</a>
+    
+  </span>
+</nav>
+<main id="main">
+<h1>so3.py</h1><p class="lede">Minimal SO(3) toolkit. Rotations are 3x3 numpy arrays, body-to-inertial.</p><pre><code>&quot;&quot;&quot;Minimal SO(3) toolkit. Rotations are 3x3 numpy arrays, body-to-inertial.&quot;&quot;&quot;
+import numpy as np
+
+
+<span id="def-hat"></span>def hat(w):
+    &quot;&quot;&quot;Map R^3 to so(3): hat(w) @ v == cross(w, v).&quot;&quot;&quot;
+    w = np.asarray(w, dtype=float)
+    return np.array([[0.0, -w[2], w[1]],
+                     [w[2], 0.0, -w[0]],
+                     [-w[1], w[0], 0.0]])
+
+
+<span id="def-vee"></span>def vee(W):
+    &quot;&quot;&quot;Inverse of hat.&quot;&quot;&quot;
+    return np.array([W[2, 1], W[0, 2], W[1, 0]])
+
+
+<span id="def-exp_so3"></span>def exp_so3(w):
+    &quot;&quot;&quot;Rodrigues formula: exponential of hat(w).&quot;&quot;&quot;
+    w = np.asarray(w, dtype=float)
+    theta = np.linalg.norm(w)
+    W = hat(w)
+    if theta &lt; 1e-8:
+        return np.eye(3) + W + 0.5 * W @ W
+    return (np.eye(3) + (np.sin(theta) / theta) * W
+            + ((1.0 - np.cos(theta)) / theta**2) * W @ W)
+
+
+<span id="def-log_so3"></span>def log_so3(R):
+    &quot;&quot;&quot;Principal logarithm, returns the rotation vector with norm in [0, pi].&quot;&quot;&quot;
+    cos_t = np.clip((np.trace(R) - 1.0) / 2.0, -1.0, 1.0)
+    theta = np.arccos(cos_t)
+    if theta &lt; 1e-8:
+        return vee(0.5 * (R - R.T))
+    if np.pi - theta &lt; 1e-6:
+        # Near pi the antisymmetric part vanishes; recover the axis from R + I.
+        B = (R + np.eye(3)) / 2.0
+        axis = np.sqrt(np.clip(np.diag(B), 0.0, None))
+        k = int(np.argmax(axis))
+        axis = B[:, k] / axis[k]
+        return theta * axis / np.linalg.norm(axis)
+    return theta / (2.0 * np.sin(theta)) * vee(R - R.T)
+
+
+<span id="def-is_rotation"></span>def is_rotation(R, tol=1e-9):
+    return (np.allclose(R @ R.T, np.eye(3), atol=tol)
+            and abs(np.linalg.det(R) - 1.0) &lt; tol)
+</code></pre>
+</main>
+<footer>
+  <p>coh-thread &middot; a foundation for high-consequence operations &middot;
+     <a href="mailto:realsaimohanty@gmail.com">realsaimohanty@gmail.com</a> &middot; <a href="../code/index.html">read the source</a></p>
+  <p>Research-grade, uncertified code. Use it as one layer of protection, never the only one.</p>
+</footer>
+
+</body>
+</html>

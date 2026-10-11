@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>05 Estimation to control loop (sketch) | coh-thread</title>
+
+<script>document.documentElement.className += " js";</script>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=IBM+Plex+Sans:wght@400;500&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../style.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<nav class="top">
+  <a class="mark" href="../index.html">coh-thread</a>
+  <span class="links">
+    <a href="../library.html">Library</a>
+    <a href="../notes/index.html">Notes</a>
+    <a href="../code/index.html">Code</a>
+    <a href="../overview.html">Overview</a>
+    <a href="../index.html#contact">Contact</a>
+    
+  </span>
+</nav>
+<main id="main">
+<h1>05 Estimation to control loop (sketch)</h1>
+<p><strong>Goal.</strong> Wire the estimator into the geometric controller and know what is
+and is not guaranteed.</p>
+<pre><code>sensors (IMU, GNSS) -&gt; invariant EKF (note 01) -&gt; (R_hat, v_hat, p_hat)
+                                                      |
+reference (xd, vd, ad, b1d) -&gt; QuadrotorSE3Controller (f, M)
+                                                      |
+                                 safety filter (note 02, optional) -&gt; motors
+</code></pre>
+<h2>Algorithm</h2>
+<pre><code>every IMU tick:      estimator.propagate
+every GNSS tick:     estimator.update
+every control tick:  (f, M) = controller(x_hat, v_hat, R_hat, W_gyro, reference)
+                     (f, M) = safety_filter(f, M)        # optional
+</code></pre>
+<h2>What the theory covers</h2>
+<ul>
+<li>Separate stability of the estimator error and the controller error holds
+  for linear systems (separation principle). It does <strong>not</strong> carry over to
+  nonlinear systems in general.</li>
+<li>For the group-affine estimator, the error dynamics are autonomous, so an
+  argument can combine the two with a small-gain or cascade bound.
+  Sketch: show the estimator error is bounded and decays; treat it as a
+  vanishing input to the controller's closed loop; check input-to-state
+  stability of the controller with respect to that input.</li>
+</ul>
+<h2>Tests to build</h2>
+<ul>
+<li>Run the full loop in simulation with sensor noise and compare tracking error
+  using the true state versus the estimate.</li>
+<li>Sweep the estimator delay; find the delay at which the loop loses stability.</li>
+<li>Check that the controller gains from <code>QuadrotorSE3Controller</code> still converge
+  with estimated state (gains tuned on true state may not).</li>
+</ul><div class="pager"><a href="04_adaptive_lyapunov.html">&larr; 04 Adaptive geometric attitude control (sketch)</a><a href="06_attitude_observer.html">06 Nonlinear complementary attitude observer on SO(3) (sketch) &rarr;</a></div>
+</main>
+<footer>
+  <p>coh-thread &middot; a foundation for high-consequence operations &middot;
+     <a href="mailto:realsaimohanty@gmail.com">realsaimohanty@gmail.com</a> &middot; <a href="../code/index.html">read the source</a></p>
+  <p>Research-grade, uncertified code. Use it as one layer of protection, never the only one.</p>
+</footer>
+
+</body>
+</html>

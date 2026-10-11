@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>geometric.py | coh-thread</title>
+
+<script>document.documentElement.className += " js";</script>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=IBM+Plex+Sans:wght@400;500&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../style.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<nav class="top">
+  <a class="mark" href="../index.html">coh-thread</a>
+  <span class="links">
+    <a href="../library.html">Library</a>
+    <a href="../notes/index.html">Notes</a>
+    <a href="../code/index.html">Code</a>
+    <a href="../overview.html">Overview</a>
+    <a href="../index.html#contact">Contact</a>
+    
+  </span>
+</nav>
+<main id="main">
+<h1>geometric.py</h1><p class="lede">Geometric control on SO(3) and SE(3) (Lee, Leok, McClamroch, CDC 2010).</p><pre><code>&quot;&quot;&quot;Geometric control on SO(3) and SE(3) (Lee, Leok, McClamroch, CDC 2010).
+
+Controllers work directly on rotation matrices, so they avoid the
+singularities of Euler angles and the double cover of quaternions.
+Frames: inertial z axis points down, thrust acts along -b3.
+&quot;&quot;&quot;
+import numpy as np
+
+from .so3 import exp_so3, hat, vee
+
+
+<span id="def-GeometricAttitudeController"></span>class GeometricAttitudeController:
+    &quot;&quot;&quot;Tracking controller on SO(3) for a rigid body J w&#x27; = M - w x J w.
+
+    Errors:  eR = 1/2 (Rd^T R - R^T Rd)^vee,   eW = W - R^T Rd Wd
+    Control: M = -kR eR - kW eW + W x J W - J (hat(W) R^T Rd Wd - R^T Rd Wd_dot)
+
+    The error function Psi = 1/2 tr(I - Rd^T R) is a Lyapunov function that is
+    almost globally decreasing: the closed loop converges for every initial
+    attitude except a measure-zero set where the rotation error equals pi.
+    &quot;&quot;&quot;
+
+    def __init__(self, J, kR=8.0, kW=2.5):
+        self.J = np.asarray(J, dtype=float)
+        self.kR, self.kW = kR, kW
+
+    @staticmethod
+    def attitude_error(R, Rd):
+        return 0.5 * vee(Rd.T @ R - R.T @ Rd)
+
+    @staticmethod
+    def psi(R, Rd):
+        &quot;&quot;&quot;Configuration error function, 0 at R = Rd and 2 at an antipodal rotation.&quot;&quot;&quot;
+        return 0.5 * np.trace(np.eye(3) - Rd.T @ R)
+
+    def moment(self, R, W, Rd, Wd=None, Wd_dot=None):
+        Wd = np.zeros(3) if Wd is None else np.asarray(Wd, dtype=float)
+        Wd_dot = np.zeros(3) if Wd_dot is None else np.asarray(Wd_dot, dtype=float)
+        eR = self.attitude_error(R, Rd)
+        RtRd = R.T @ Rd
+        eW = W - RtRd @ Wd
+        feedforward = hat(W) @ RtRd @ Wd - RtRd @ Wd_dot
+        return (-self.kR * eR - self.kW * eW
+                + np.cross(W, self.J @ W) - self.J @ feedforward)
+
+    def step_dynamics(self, R, W, M, dt):
+        &quot;&quot;&quot;Lie-group Euler step: R stays exactly on SO(3).&quot;&quot;&quot;
+        W_dot = np.linalg.solve(self.J, M - np.cross(W, self.J @ W))
+        return R @ exp_so3(W * dt), W + dt * W_dot
+
+    def simulate(self, R0, W0, Rd, T=6.0, dt=0.001):
+        R, W = np.array(R0, dtype=float), np.array(W0, dtype=float)
+        log = []
+        for i in range(int(T / dt)):
+            log.append((i * dt, self.psi(R, Rd), np.linalg.norm(W)))
+            M = self.moment(R, W, Rd)
+            R, W = self.step_dynamics(R, W, M, dt)
+        return R, W, np.array(log)
+
+
+<span id="def-QuadrotorSE3Controller"></span>class QuadrotorSE3Controller:
+    &quot;&quot;&quot;Position tracking for a quadrotor on SE(3).
+
+    Dynamics: m x&#x27;&#x27; = m g e3 - f R e3,  R&#x27; = R hat(W),  J W&#x27; = M - W x J W.
+    The outer loop turns position and velocity error into a thrust vector, which
+    defines the desired attitude Rd; the inner loop is GeometricAttitudeController.
+    Desired angular velocity and acceleration are set to zero, which is the
+    simplified variant of the paper&#x27;s controller. It works for slowly varying
+    references; aggressive trajectories need the full feedforward terms.
+
+    Two normalisations in the paper&#x27;s construction of Rd are singular:
+    b3d = -A/|A| at A = 0 (zero thrust command), and b2d = b3d x b1d / |.| when the thrust
+    axis is parallel to the heading b1d. Dividing by sqrt(|v|^2 + eps^2) instead would
+    return vectors shorter than 1, so Rd would stop being a rotation. The fixes keep Rd
+    exactly in SO(3):
+
+    thrust_eps  Shift the command before normalising, b3d = -A_s/|A_s| with
+                A_s = ((1 + k) A_x, (1 + k) A_y, A_z - k m g), k = thrust_eps. A_s is never zero
+                for an upward thrust command (A . e3 &lt;= 0), so b3d is smooth through A = 0 (level
+                attitude there). Hover is unchanged (A = -m g e3 gives b3d = e3), and the (1 + k)
+                on the horizontal part keeps the tilt per unit horizontal error equal to the
+                paper&#x27;s to first order at hover, so kx and kv keep their meaning. Away from hover
+                the thrust direction differs by O(k). The thrust magnitude f uses the unshifted A.
+    heading     &quot;tilt_twist&quot;: Rd = Rmin(e3 -&gt; b3d) Rz(psi), psi = atan2(b1d_y, b1d_x). Smooth
+                except where b3d = -e3 (thrust pointing straight down). &quot;projection&quot;: the
+                paper&#x27;s b2d construction.
+    thrust_eps = 0 with heading = &quot;projection&quot; reproduces the paper&#x27;s Rd exactly.
+
+    A smooth Rd for every thrust direction does not exist (a sphere has no nowhere-zero
+    tangent field), so both fixes move the singularity out of the flight envelope instead of
+    removing it: it now sits at downward-thrust commands. The heading reference must have a
+    nonzero horizontal component for &quot;tilt_twist&quot;. With &quot;tilt_twist&quot; the heading convention
+    differs from &quot;projection&quot; at large tilt (they agree at hover and for pure pitch or roll).
+    &quot;&quot;&quot;
+
+    def __init__(self, mass, J, kx=8.0, kv=4.0, kR=8.81, kW=2.54, g=9.81,
+                 thrust_eps=0.02, heading=&quot;tilt_twist&quot;):
+        if heading not in (&quot;tilt_twist&quot;, &quot;projection&quot;):
+            raise ValueError(&quot;heading must be &#x27;tilt_twist&#x27; or &#x27;projection&#x27;&quot;)
+        self.m, self.g = mass, g
+        self.kx, self.kv = kx, kv
+        self.thrust_eps, self.heading = thrust_eps, heading
+        self.att = GeometricAttitudeController(J, kR=kR, kW=kW)
+
+    def thrust_direction(self, A):
+        &quot;&quot;&quot;b3d = -A_s / |A_s| with the shifted command A_s of the class docstring.&quot;&quot;&quot;
+        k = self.thrust_eps
+        A_s = np.array(A, dtype=float)
+        A_s[:2] *= 1.0 + k
+        A_s[2] -= k * self.m * self.g
+        return -A_s / np.linalg.norm(A_s)
+
+    def desired_attitude(self, A, b1d):
+        b3d = self.thrust_direction(A)
+        if self.heading == &quot;projection&quot;:
+            b2d = np.cross(b3d, b1d)
+            b2d = b2d / np.linalg.norm(b2d)
+            return np.column_stack([np.cross(b2d, b3d), b2d, b3d])
+        # Minimal rotation e3 -&gt; b3d (Rodrigues, singular only at b3d = -e3), then yaw.
+        horizontal = np.hypot(b1d[0], b1d[1])
+        if horizontal &lt; 1e-12:
+            raise ValueError(&quot;heading reference b1d must have a nonzero horizontal component&quot;)
+        c_psi, s_psi = b1d[0] / horizontal, b1d[1] / horizontal
+        u = np.cross(np.array([0.0, 0.0, 1.0]), b3d)
+        U = hat(u)
+        R_tilt = np.eye(3) + U + U @ U / (1.0 + b3d[2])
+        R_yaw = np.array([[c_psi, -s_psi, 0.0], [s_psi, c_psi, 0.0], [0.0, 0.0, 1.0]])
+        return R_tilt @ R_yaw
+
+    def control(self, x, v, R, W, xd, vd=None, ad=None, b1d=None):
+        vd = np.zeros(3) if vd is None else np.asarray(vd, dtype=float)
+        ad = np.zeros(3) if ad is None else np.asarray(ad, dtype=float)
+        b1d = np.array([1.0, 0.0, 0.0]) if b1d is None else np.asarray(b1d, dtype=float)
+        e3 = np.array([0.0, 0.0, 1.0])
+        ex, ev = x - xd, v - vd
+        A = -self.kx * ex - self.kv * ev - self.m * self.g * e3 + self.m * ad
+        f = float(-A @ (R @ e3))
+        Rd = self.desired_attitude(A, b1d)
+        M = self.att.moment(R, W, Rd)
+        return f, M, Rd
+
+    def simulate(self, x0, R0, xd, T=8.0, dt=0.001, v0=None, W0=None):
+        e3 = np.array([0.0, 0.0, 1.0])
+        x = np.asarray(x0, dtype=float)
+        v = np.zeros(3) if v0 is None else np.asarray(v0, dtype=float)
+        R = np.array(R0, dtype=float)
+        W = np.zeros(3) if W0 is None else np.asarray(W0, dtype=float)
+        log = []
+        for i in range(int(T / dt)):
+            f, M, _ = self.control(x, v, R, W, xd)
+            log.append((i * dt, *x))
+            a = self.g * e3 - (f / self.m) * (R @ e3)
+            x = x + dt * v
+            v = v + dt * a
+            R, W = self.att.step_dynamics(R, W, M, dt)
+        return x, v, R, W, np.array(log)
+</code></pre>
+</main>
+<footer>
+  <p>coh-thread &middot; a foundation for high-consequence operations &middot;
+     <a href="mailto:realsaimohanty@gmail.com">realsaimohanty@gmail.com</a> &middot; <a href="../code/index.html">read the source</a></p>
+  <p>Research-grade, uncertified code. Use it as one layer of protection, never the only one.</p>
+</footer>
+
+</body>
+</html>

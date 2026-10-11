@@ -1,0 +1,155 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>kalman.py | coh-thread</title>
+
+<script>document.documentElement.className += " js";</script>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=IBM+Plex+Sans:wght@400;500&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../style.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<nav class="top">
+  <a class="mark" href="../index.html">coh-thread</a>
+  <span class="links">
+    <a href="../library.html">Library</a>
+    <a href="../notes/index.html">Notes</a>
+    <a href="../code/index.html">Code</a>
+    <a href="../overview.html">Overview</a>
+    <a href="../index.html#contact">Contact</a>
+    
+  </span>
+</nav>
+<main id="main">
+<h1>kalman.py</h1><p class="lede">Kalman filter family: linear (KF), extended (EKF) and unscented (UKF).</p><pre><code>&quot;&quot;&quot;Kalman filter family: linear (KF), extended (EKF) and unscented (UKF).
+
+All filters keep a state mean ``x`` and covariance ``P`` and expose
+``predict`` and ``update``. ``update`` returns the innovation and its
+covariance so callers can compute NIS for consistency checks.
+&quot;&quot;&quot;
+import numpy as np
+
+
+<span id="def-_sym"></span>def _sym(P):
+    return 0.5 * (P + P.T)
+
+
+<span id="def-KalmanFilter"></span>class KalmanFilter:
+    &quot;&quot;&quot;x+ = F x + B u + w,  z = H x + v,  w~N(0,Q), v~N(0,R).&quot;&quot;&quot;
+
+    def __init__(self, F, H, Q, R, x0, P0, B=None):
+        self.F, self.H, self.Q, self.R = map(np.atleast_2d, (F, H, Q, R))
+        self.B = None if B is None else np.atleast_2d(B)
+        self.x = np.asarray(x0, dtype=float).copy()
+        self.P = np.atleast_2d(P0).astype(float).copy()
+
+    def predict(self, u=None):
+        self.x = self.F @ self.x
+        if u is not None and self.B is not None:
+            self.x = self.x + self.B @ np.atleast_1d(u)
+        self.P = _sym(self.F @ self.P @ self.F.T + self.Q)
+        return self.x
+
+    def update(self, z):
+        z = np.atleast_1d(z).astype(float)
+        y = z - self.H @ self.x
+        S = self.H @ self.P @ self.H.T + self.R
+        K = self.P @ self.H.T @ np.linalg.inv(S)
+        self.x = self.x + K @ y
+        I_KH = np.eye(len(self.x)) - K @ self.H
+        # Joseph form keeps P symmetric positive semi-definite.
+        self.P = _sym(I_KH @ self.P @ I_KH.T + K @ self.R @ K.T)
+        return y, S
+
+
+<span id="def-ExtendedKalmanFilter"></span>class ExtendedKalmanFilter:
+    &quot;&quot;&quot;x+ = f(x,u) + w,  z = h(x) + v, linearised with the supplied Jacobians.&quot;&quot;&quot;
+
+    def __init__(self, f, F_jac, h, H_jac, Q, R, x0, P0):
+        self.f, self.F_jac, self.h, self.H_jac = f, F_jac, h, H_jac
+        self.Q, self.R = np.atleast_2d(Q), np.atleast_2d(R)
+        self.x = np.asarray(x0, dtype=float).copy()
+        self.P = np.atleast_2d(P0).astype(float).copy()
+
+    def predict(self, u=None):
+        F = np.atleast_2d(self.F_jac(self.x, u))
+        self.x = np.asarray(self.f(self.x, u), dtype=float)
+        self.P = _sym(F @ self.P @ F.T + self.Q)
+        return self.x
+
+    def update(self, z):
+        z = np.atleast_1d(z).astype(float)
+        H = np.atleast_2d(self.H_jac(self.x))
+        y = z - np.atleast_1d(self.h(self.x))
+        S = H @ self.P @ H.T + self.R
+        K = self.P @ H.T @ np.linalg.inv(S)
+        self.x = self.x + K @ y
+        I_KH = np.eye(len(self.x)) - K @ H
+        self.P = _sym(I_KH @ self.P @ I_KH.T + K @ self.R @ K.T)
+        return y, S
+
+
+<span id="def-UnscentedKalmanFilter"></span>class UnscentedKalmanFilter:
+    &quot;&quot;&quot;Scaled unscented transform (Julier/Wan-van der Merwe), additive noise.
+
+    Parameters alpha, beta, kappa follow the usual convention; alpha=1e-3,
+    beta=2, kappa=0 is the common default for Gaussian states.
+    &quot;&quot;&quot;
+
+    def __init__(self, f, h, Q, R, x0, P0, alpha=1e-3, beta=2.0, kappa=0.0):
+        self.f, self.h = f, h
+        self.Q, self.R = np.atleast_2d(Q), np.atleast_2d(R)
+        self.x = np.asarray(x0, dtype=float).copy()
+        self.P = np.atleast_2d(P0).astype(float).copy()
+        n = len(self.x)
+        self.n = n
+        lam = alpha**2 * (n + kappa) - n
+        self.lam = lam
+        self.Wm = np.full(2 * n + 1, 1.0 / (2.0 * (n + lam)))
+        self.Wc = self.Wm.copy()
+        self.Wm[0] = lam / (n + lam)
+        self.Wc[0] = lam / (n + lam) + (1.0 - alpha**2 + beta)
+
+    def _sigma_points(self, x, P):
+        L = np.linalg.cholesky((self.n + self.lam) * _sym(P))
+        pts = [x]
+        for i in range(self.n):
+            pts.append(x + L[:, i])
+        for i in range(self.n):
+            pts.append(x - L[:, i])
+        return np.array(pts)
+
+    def predict(self, u=None):
+        X = self._sigma_points(self.x, self.P)
+        Xp = np.array([np.asarray(self.f(p, u), dtype=float) for p in X])
+        self.x = self.Wm @ Xp
+        d = Xp - self.x
+        self.P = _sym((self.Wc[:, None] * d).T @ d + self.Q)
+        return self.x
+
+    def update(self, z):
+        z = np.atleast_1d(z).astype(float)
+        X = self._sigma_points(self.x, self.P)
+        Z = np.array([np.atleast_1d(self.h(p)) for p in X])
+        z_hat = self.Wm @ Z
+        dz = Z - z_hat
+        dx = X - self.x
+        S = (self.Wc[:, None] * dz).T @ dz + self.R
+        Pxz = (self.Wc[:, None] * dx).T @ dz
+        K = Pxz @ np.linalg.inv(S)
+        y = z - z_hat
+        self.x = self.x + K @ y
+        self.P = _sym(self.P - K @ S @ K.T)
+        return y, S
+</code></pre>
+</main>
+<footer>
+  <p>coh-thread &middot; a foundation for high-consequence operations &middot;
+     <a href="mailto:realsaimohanty@gmail.com">realsaimohanty@gmail.com</a> &middot; <a href="../code/index.html">read the source</a></p>
+  <p>Research-grade, uncertified code. Use it as one layer of protection, never the only one.</p>
+</footer>
+
+</body>
+</html>

@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>01 Invariant EKF on a matrix Lie group (sketch) | coh-thread</title>
+
+<script>document.documentElement.className += " js";</script>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=IBM+Plex+Sans:wght@400;500&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../style.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<nav class="top">
+  <a class="mark" href="../index.html">coh-thread</a>
+  <span class="links">
+    <a href="../library.html">Library</a>
+    <a href="../notes/index.html">Notes</a>
+    <a href="../code/index.html">Code</a>
+    <a href="../overview.html">Overview</a>
+    <a href="../index.html#contact">Contact</a>
+    
+  </span>
+</nav>
+<main id="main">
+<h1>01 Invariant EKF on a matrix Lie group (sketch)</h1>
+<p><strong>Goal.</strong> Estimate attitude, velocity and position from IMU plus GNSS without
+the linearisation inconsistency of a standard EKF on Euler angles.</p>
+<p><strong>State.</strong> X in SE_2(3): (R, v, p) as one 5x5 matrix. Bias b = (b_g, b_a) is
+kept as a separate vector appended to the error state.</p>
+<p><strong>Why.</strong> For group-affine dynamics the log-linear error eta = X_hat^-1 X (or
+X X_hat^-1) obeys an error equation that does not depend on the trajectory.
+The Jacobians are then constant along it, which fixes the observability
+mismatch of the usual EKF.</p>
+<h2>Algorithm</h2>
+<pre><code>init  X_hat in SE_2(3), b_hat, P (covariance of xi, with eta = exp(xi))
+loop:
+  # propagate with IMU (w_m, a_m)
+  w = w_m - b_g_hat ; a = a_m - b_a_hat
+  R_hat &lt;- R_hat * exp(w dt)
+  v_hat &lt;- v_hat + (R_hat a + g) dt
+  p_hat &lt;- p_hat + v_hat dt + 0.5 (R_hat a + g) dt^2
+  P     &lt;- Phi P Phi^T + Q_d        # Phi from the group-affine error ODE
+  # update with GNSS position z
+  innov = z - p_hat
+  S     = H P H^T + R
+  K     = P H^T S^-1
+  xi    = K innov
+  X_hat &lt;- exp_SE23(xi) * X_hat     # left-invariant update
+  b_hat &lt;- b_hat + K_b innov
+  P     &lt;- (I - K H) P
+</code></pre>
+<h2>Checks to run once implemented</h2>
+<ul>
+<li>NEES over many Monte Carlo runs should sit near the state dimension.</li>
+<li>Compare against <code>ExtendedKalmanFilter</code> on the same data; the invariant
+  version should keep a consistent covariance for longer runs and larger initial
+  heading error.</li>
+<li>Yaw is unobservable without a magnetometer or motion: check P grows in that
+  direction when the vehicle is stationary.</li>
+</ul>
+<h2>Open questions</h2>
+<ul>
+<li>Right versus left invariant form given where the measurement noise lives.</li>
+<li>Handling GNSS outages: pure propagation drift rate with the chosen Q.</li>
+</ul><div class="pager"><span></span><a href="02_clf_cbf_qp.html">02 CLF-CBF quadratic program safety filter (sketch) &rarr;</a></div>
+</main>
+<footer>
+  <p>coh-thread &middot; a foundation for high-consequence operations &middot;
+     <a href="mailto:realsaimohanty@gmail.com">realsaimohanty@gmail.com</a> &middot; <a href="../code/index.html">read the source</a></p>
+  <p>Research-grade, uncertified code. Use it as one layer of protection, never the only one.</p>
+</footer>
+
+</body>
+</html>

@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>continuity.py | coh-thread</title>
+
+<script>document.documentElement.className += " js";</script>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=IBM+Plex+Sans:wght@400;500&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../style.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<nav class="top">
+  <a class="mark" href="../index.html">coh-thread</a>
+  <span class="links">
+    <a href="../library.html">Library</a>
+    <a href="../notes/index.html">Notes</a>
+    <a href="../code/index.html">Code</a>
+    <a href="../overview.html">Overview</a>
+    <a href="../index.html#contact">Contact</a>
+    
+  </span>
+</nav>
+<main id="main">
+<h1>continuity.py</h1><p class="lede">Find continuity breaks in a sampled signal.</p><pre><code>&quot;&quot;&quot;Find continuity breaks in a sampled signal.
+
+A signal logged from a controller or monitor can hide jumps (C0 breaks) and
+kinks (C1 breaks) from hard switches, clipping, thresholds and angle wrapping.
+`find_breaks` locates them so they can be replaced with the modifiers in
+`smooth.py`.
+
+A break is anything the sampling cannot resolve as smooth: a rounded corner
+whose radius is many samples wide is not reported, a sharper one is. Assumes
+near-uniform sampling. For noisy data raise `abs_tol` to a few noise sigmas.
+&quot;&quot;&quot;
+from dataclasses import dataclass
+
+import numpy as np
+
+
+@dataclass(frozen=True)
+<span id="def-Break"></span>class Break:
+    index: int     # first sample after the jump (order 0) or the kink sample (order 1)
+    time: float
+    order: int     # 0 = jump in value, 1 = kink (jump in slope)
+    size: float    # signed jump height, or signed change of slope
+
+
+<span id="def-_outliers"></span>def _outliers(a, window, ratio, tol):
+    &quot;&quot;&quot;Indices where |a_k| exceeds ratio * (median |a| of its neighbours) + tol.&quot;&quot;&quot;
+    mag = np.abs(a)
+    hits = []
+    for k in range(len(mag)):
+        lo, hi = max(0, k - window), min(len(mag), k + window + 1)
+        neighbours = np.delete(mag[lo:hi], k - lo)
+        ref = np.median(neighbours) if neighbours.size else 0.0
+        if mag[k] &gt; ratio * ref + tol:
+            hits.append(k)
+    return hits
+
+
+<span id="def-find_breaks"></span>def find_breaks(t, y, window=7, ratio=8.0, abs_tol=1e-9):
+    t, y = np.asarray(t, dtype=float), np.asarray(y, dtype=float)
+    dt = float(np.median(np.diff(t)))
+    dy = np.diff(y)
+    jumps = _outliers(dy, window, ratio, abs_tol)
+    found = [Break(j + 1, float(t[j + 1]), 0, float(dy[j])) for j in jumps]
+
+    slope = dy / dt
+    dslope = np.diff(slope)           # dslope[k] is the slope change at sample k + 1
+    masked = {j + off for j in jumps for off in (-1, 0)}   # a jump spikes two entries
+    for k in _outliers(dslope, window, ratio, abs_tol / dt):
+        if k not in masked:
+            found.append(Break(k + 1, float(t[k + 1]), 1, float(dslope[k])))
+    return _merge_adjacent(sorted(found, key=lambda b: (b.order, b.index)))
+
+
+<span id="def-_merge_adjacent"></span>def _merge_adjacent(found):
+    &quot;&quot;&quot;A kink between two samples spreads over two neighbouring entries; join them
+    into one break whose size is the total slope change.&quot;&quot;&quot;
+    merged = []
+    for b in found:
+        prev = merged[-1] if merged else None
+        if prev and prev.order == b.order and b.index - prev.index &lt;= 1:
+            keep = prev if abs(prev.size) &gt;= abs(b.size) else b
+            merged[-1] = Break(keep.index, keep.time, b.order, prev.size + b.size)
+        else:
+            merged.append(b)
+    return sorted(merged, key=lambda b: b.index)
+</code></pre>
+</main>
+<footer>
+  <p>coh-thread &middot; a foundation for high-consequence operations &middot;
+     <a href="mailto:realsaimohanty@gmail.com">realsaimohanty@gmail.com</a> &middot; <a href="../code/index.html">read the source</a></p>
+  <p>Research-grade, uncertified code. Use it as one layer of protection, never the only one.</p>
+</footer>
+
+</body>
+</html>

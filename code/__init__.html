@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>__init__.py | coh-thread</title>
+
+<script>document.documentElement.className += " js";</script>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=IBM+Plex+Sans:wght@400;500&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../style.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<nav class="top">
+  <a class="mark" href="../index.html">coh-thread</a>
+  <span class="links">
+    <a href="../library.html">Library</a>
+    <a href="../notes/index.html">Notes</a>
+    <a href="../code/index.html">Code</a>
+    <a href="../overview.html">Overview</a>
+    <a href="../index.html#contact">Contact</a>
+    
+  </span>
+</nav>
+<main id="main">
+<h1>__init__.py</h1><p class="lede">Control systems suite: estimation, Lyapunov methods and geometric control.</p><pre><code>&quot;&quot;&quot;Control systems suite: estimation, Lyapunov methods and geometric control.
+
+Modules
+-------
+kalman     Linear, extended and unscented Kalman filters.
+lyapunov   Lyapunov equation, LQR, Lyapunov-based energy shaping, numeric V-dot checks.
+so3        SO(3) helpers (hat, vee, exp, log) shared by the geometric controllers.
+geometric  Attitude control on SO(3) and a quadrotor position controller on SE(3).
+
+smooth     Smooth replacements for kinks: |x|, max/min, clip, switches, bang-bang.
+continuity Detect jumps and kinks in a sampled signal.
+pmp        Pontryagin minimum principle by indirect shooting (Euclidean).
+geometric_pmp  Geometric PMP for rigid-body attitude on SO(3) (Lie-Poisson reduced).
+
+Theoretical pipelines that are not implemented live in ``notes/``.
+&quot;&quot;&quot;
+from .kalman import ExtendedKalmanFilter, KalmanFilter, UnscentedKalmanFilter
+from .lyapunov import (
+    PendulumSwingUp,
+    is_hurwitz,
+    lqr,
+    lyapunov_equation,
+    check_vdot_negative,
+)
+from .so3 import exp_so3, hat, log_so3, vee
+from .geometric import GeometricAttitudeController, QuadrotorSE3Controller
+from .continuity import Break, find_breaks
+from .geometric_pmp import AttitudeExtremal, AttitudePMP, magnus_rotation
+from .pmp import Extremal, PMPShooting
+from .smooth import (
+    barrier_control, barrier_cost, bump_step, smooth_abs, smooth_always,
+    smooth_eventually, smooth_max, smooth_min, smooth_normalize, smooth_sign,
+    smooth_switch, softplus, tanh_sat,
+)
+
+__all__ = [
+    &quot;KalmanFilter&quot;, &quot;ExtendedKalmanFilter&quot;, &quot;UnscentedKalmanFilter&quot;,
+    &quot;lyapunov_equation&quot;, &quot;is_hurwitz&quot;, &quot;lqr&quot;, &quot;check_vdot_negative&quot;, &quot;PendulumSwingUp&quot;,
+    &quot;hat&quot;, &quot;vee&quot;, &quot;exp_so3&quot;, &quot;log_so3&quot;,
+    &quot;GeometricAttitudeController&quot;, &quot;QuadrotorSE3Controller&quot;,
+    &quot;Break&quot;, &quot;find_breaks&quot;,
+    &quot;AttitudePMP&quot;, &quot;AttitudeExtremal&quot;, &quot;magnus_rotation&quot;,
+    &quot;PMPShooting&quot;, &quot;Extremal&quot;,
+    &quot;smooth_abs&quot;, &quot;smooth_sign&quot;, &quot;smooth_normalize&quot;, &quot;softplus&quot;, &quot;smooth_max&quot;, &quot;smooth_min&quot;,
+    &quot;tanh_sat&quot;, &quot;bump_step&quot;, &quot;smooth_switch&quot;, &quot;barrier_cost&quot;, &quot;barrier_control&quot;,
+    &quot;smooth_always&quot;, &quot;smooth_eventually&quot;,
+]
+</code></pre>
+</main>
+<footer>
+  <p>coh-thread &middot; a foundation for high-consequence operations &middot;
+     <a href="mailto:realsaimohanty@gmail.com">realsaimohanty@gmail.com</a> &middot; <a href="../code/index.html">read the source</a></p>
+  <p>Research-grade, uncertified code. Use it as one layer of protection, never the only one.</p>
+</footer>
+
+</body>
+</html>

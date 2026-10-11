@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>03 Geometric MPC on SO(3) / SE(3) (sketch) | coh-thread</title>
+
+<script>document.documentElement.className += " js";</script>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=IBM+Plex+Sans:wght@400;500&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../style.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<nav class="top">
+  <a class="mark" href="../index.html">coh-thread</a>
+  <span class="links">
+    <a href="../library.html">Library</a>
+    <a href="../notes/index.html">Notes</a>
+    <a href="../code/index.html">Code</a>
+    <a href="../overview.html">Overview</a>
+    <a href="../index.html#contact">Contact</a>
+    
+  </span>
+</nav>
+<main id="main">
+<h1>03 Geometric MPC on SO(3) / SE(3) (sketch)</h1>
+<p><strong>Goal.</strong> Receding-horizon control that handles constraints (torque limits,
+tilt limits) and keeps the state exactly on the manifold.</p>
+<p><strong>Discretisation.</strong> Lie-group variational integrator:</p>
+<pre><code>R_{k+1} = R_k exp(dt W_k)
+J W_{k+1} = J W_k + dt (M_k + (J W_k) x W_k)   # simple scheme; a true variational
+                                                # integrator solves for W_{k+1}
+</code></pre>
+<h2>Algorithm (SQP / iLQR on the manifold)</h2>
+<pre><code>given current (R0, W0), reference (Rd_k, Wd_k) for k = 0..N
+init control sequence M_0..M_{N-1} from GeometricAttitudeController
+repeat until converged or iteration budget used:
+  roll out states with the integrator
+  error      xi_k = log_so3(Rd_k^T R_k) ; w_k = W_k - Wd_k     # tangent-space error
+  linearise  (xi, w) dynamics about the rollout: A_k, B_k
+  cost       sum xi^T Q xi + w^T Qw w + M^T R M ,  terminal 0.5 xi^T P_N xi
+  solve the QP / backward Riccati sweep for dM_k with M bounds
+  line search: M_k &lt;- M_k + a dM_k
+apply M_0 ; shift the horizon ; warm-start next solve
+</code></pre>
+<p>Use <code>GeometricAttitudeController</code> for the warm start and as the fallback if
+the solver fails to converge in time.</p>
+<h2>Terminal ingredients</h2>
+<ul>
+<li>P_N from the LQR Riccati solution of the linearisation at (Rd, Wd).</li>
+<li>Terminal set: sublevel set of Psi(R, Rd) + 0.5 W^T J W small enough that the
+  geometric controller is feasible within the torque bounds.</li>
+</ul>
+<h2>Open questions</h2>
+<ul>
+<li>Recursive feasibility is not proven here; it needs the terminal set above.</li>
+<li>Cost of log_so3 and its Jacobian near an angle of pi.</li>
+<li>Real-time budget: target a few ms per solve for N around 20.</li>
+</ul><div class="pager"><a href="02_clf_cbf_qp.html">&larr; 02 CLF-CBF quadratic program safety filter (sketch)</a><a href="04_adaptive_lyapunov.html">04 Adaptive geometric attitude control (sketch) &rarr;</a></div>
+</main>
+<footer>
+  <p>coh-thread &middot; a foundation for high-consequence operations &middot;
+     <a href="mailto:realsaimohanty@gmail.com">realsaimohanty@gmail.com</a> &middot; <a href="../code/index.html">read the source</a></p>
+  <p>Research-grade, uncertified code. Use it as one layer of protection, never the only one.</p>
+</footer>
+
+</body>
+</html>

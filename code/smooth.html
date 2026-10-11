@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>smooth.py | coh-thread</title>
+
+<script>document.documentElement.className += " js";</script>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=IBM+Plex+Sans:wght@400;500&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../style.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<nav class="top">
+  <a class="mark" href="../index.html">coh-thread</a>
+  <span class="links">
+    <a href="../library.html">Library</a>
+    <a href="../notes/index.html">Notes</a>
+    <a href="../code/index.html">Code</a>
+    <a href="../overview.html">Overview</a>
+    <a href="../index.html#contact">Contact</a>
+    
+  </span>
+</nav>
+<main id="main">
+<h1>smooth.py</h1><p class="lede">Smooth replacements for kinks and discontinuities.</p><pre><code>&quot;&quot;&quot;Smooth replacements for kinks and discontinuities.
+
+Every function here is C-infinity and carries a width parameter (eps, width,
+or r). Smaller values track the original non-smooth function more closely
+and make derivatives larger (stiffer), so treat the width as a design choice
+and, for shooting or MPC, lower it by continuation.
+
+Replaces                      Use
+|x|                           smooth_abs
+sign(x), v/|v|                smooth_sign, smooth_normalize
+max(x, 0)                     softplus
+max_i / min_i                 smooth_max, smooth_min
+clip(x, -a, a)                tanh_sat
+if s &gt; c: b else a            smooth_switch (C-infinity blend, exact outside a band)
+bang-bang from |u| &lt;= u_max   barrier_cost + barrier_control (a smooth *cost*, so the
+                              minimum principle still applies to the smoothed problem)
+STL always / eventually       smooth_always, smooth_eventually
+&quot;&quot;&quot;
+import numpy as np
+from scipy.special import logsumexp, xlogy
+
+
+<span id="def-smooth_abs"></span>def smooth_abs(x, eps):
+    &quot;&quot;&quot;sqrt(x^2 + eps^2) - eps. Zero at 0, and 0 &lt;= |x| - value &lt;= eps.&quot;&quot;&quot;
+    x = np.asarray(x, dtype=float)
+    return np.sqrt(x * x + eps * eps) - eps
+
+
+<span id="def-smooth_sign"></span>def smooth_sign(x, eps):
+    &quot;&quot;&quot;Derivative of sqrt(x^2 + eps^2); tends to sign(x) as eps -&gt; 0.&quot;&quot;&quot;
+    x = np.asarray(x, dtype=float)
+    return x / np.sqrt(x * x + eps * eps)
+
+
+<span id="def-smooth_normalize"></span>def smooth_normalize(v, eps):
+    &quot;&quot;&quot;v / sqrt(|v|^2 + eps^2). Defined at v = 0, unlike v / |v|.&quot;&quot;&quot;
+    v = np.asarray(v, dtype=float)
+    return v / np.sqrt(v @ v + eps * eps)
+
+
+<span id="def-softplus"></span>def softplus(x, eps):
+    &quot;&quot;&quot;eps * log(1 + exp(x / eps)). max(x, 0) &lt;= value &lt;= max(x, 0) + eps ln 2.&quot;&quot;&quot;
+    return eps * np.logaddexp(0.0, np.asarray(x, dtype=float) / eps)
+
+
+<span id="def-smooth_max"></span>def smooth_max(values, eps, axis=-1):
+    &quot;&quot;&quot;Log-sum-exp. max &lt;= value &lt;= max + eps ln n, so it never under-estimates.&quot;&quot;&quot;
+    return eps * logsumexp(np.asarray(values, dtype=float) / eps, axis=axis)
+
+
+<span id="def-smooth_min"></span>def smooth_min(values, eps, axis=-1):
+    &quot;&quot;&quot;-smooth_max(-values). min - eps ln n &lt;= value &lt;= min, so it never over-estimates.&quot;&quot;&quot;
+    return -smooth_max(-np.asarray(values, dtype=float), eps, axis=axis)
+
+
+<span id="def-tanh_sat"></span>def tanh_sat(x, limit, slope=1.0):
+    &quot;&quot;&quot;limit * tanh(slope * x / limit): bounded by limit, gain `slope` near zero.
+    Smooth stand-in for clip(slope * x, -limit, limit).&quot;&quot;&quot;
+    return limit * np.tanh(slope * np.asarray(x, dtype=float) / limit)
+
+
+<span id="def-bump_step"></span>def bump_step(s):
+    &quot;&quot;&quot;C-infinity step: 0 for s &lt;= 0, 1 for s &gt;= 1, strictly monotone between.
+    All derivatives vanish at both ends, so a blend built on it is *exactly*
+    the old behaviour outside the transition band.&quot;&quot;&quot;
+    s = np.clip(np.asarray(s, dtype=float), 0.0, 1.0)
+    pos = np.where(s &gt; 0.0, s, 1.0)
+    neg = np.where(s &lt; 1.0, 1.0 - s, 1.0)
+    a = np.where(s &gt; 0.0, np.exp(-1.0 / pos), 0.0)
+    b = np.where(s &lt; 1.0, np.exp(-1.0 / neg), 0.0)
+    return a / (a + b)
+
+
+<span id="def-smooth_switch"></span>def smooth_switch(s, low, high, a, b):
+    &quot;&quot;&quot;Blend a -&gt; b as the monitored quantity s crosses [low, high].
+    Exactly a for s &lt;= low, exactly b for s &gt;= high. For control-affine systems
+    and a shared Lyapunov function V, V-dot is affine in u, so if both a and b
+    satisfy V-dot &lt;= -gamma V then so does every blend.&quot;&quot;&quot;
+    w = bump_step((s - low) / (high - low))
+    return (1.0 - w) * np.asarray(a, dtype=float) + w * np.asarray(b, dtype=float)
+
+
+<span id="def-barrier_cost"></span>def barrier_cost(u, u_max, r=1.0):
+    &quot;&quot;&quot;Smooth strictly convex input cost for the box |u| &lt;= u_max (elementwise).
+
+        w(u) = (r u_max^2 / 2) [(1+s) ln(1+s) + (1-s) ln(1-s)],   s = u / u_max
+
+    w(u) ~ r u^2 / 2 near zero, w&#x27;(u) = r u_max atanh(s), and w is finite at
+    |s| = 1 with infinite slope there. Minimising w(u) + g u over u gives
+    u = -u_max tanh(g / (r u_max)) (see barrier_control), so the Hamiltonian
+    minimiser is smooth in g and never leaves the box. As r -&gt; 0 it tends to
+    the bang-bang law -u_max sign(g).&quot;&quot;&quot;
+    s = np.clip(np.asarray(u, dtype=float) / u_max, -1.0, 1.0)
+    return 0.5 * r * u_max**2 * (xlogy(1.0 + s, 1.0 + s) + xlogy(1.0 - s, 1.0 - s))
+
+
+<span id="def-barrier_control"></span>def barrier_control(g, u_max, r=1.0):
+    &quot;&quot;&quot;argmin_u  w(u) + g u  =  -u_max tanh(g / (r u_max)).&quot;&quot;&quot;
+    return -u_max * np.tanh(np.asarray(g, dtype=float) / (r * u_max))
+
+
+<span id="def-smooth_always"></span>def smooth_always(margins, eps):
+    &quot;&quot;&quot;Smooth robustness of &#x27;always (h &gt;= 0)&#x27; over samples: a soft minimum.
+    Sound: smooth_always &lt;= min, so smooth_always &gt;= 0 implies every margin &gt;= 0.&quot;&quot;&quot;
+    return smooth_min(margins, eps)
+
+
+<span id="def-smooth_eventually"></span>def smooth_eventually(margins, eps):
+    &quot;&quot;&quot;Smooth robustness of &#x27;eventually (h &gt;= 0)&#x27;: a soft maximum (&gt;= max).&quot;&quot;&quot;
+    return smooth_max(margins, eps)
+</code></pre>
+</main>
+<footer>
+  <p>coh-thread &middot; a foundation for high-consequence operations &middot;
+     <a href="mailto:realsaimohanty@gmail.com">realsaimohanty@gmail.com</a> &middot; <a href="../code/index.html">read the source</a></p>
+  <p>Research-grade, uncertified code. Use it as one layer of protection, never the only one.</p>
+</footer>
+
+</body>
+</html>

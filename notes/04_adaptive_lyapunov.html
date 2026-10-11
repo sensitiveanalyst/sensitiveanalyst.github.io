@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>04 Adaptive geometric attitude control (sketch) | coh-thread</title>
+
+<script>document.documentElement.className += " js";</script>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=IBM+Plex+Sans:wght@400;500&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../style.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<nav class="top">
+  <a class="mark" href="../index.html">coh-thread</a>
+  <span class="links">
+    <a href="../library.html">Library</a>
+    <a href="../notes/index.html">Notes</a>
+    <a href="../code/index.html">Code</a>
+    <a href="../overview.html">Overview</a>
+    <a href="../index.html#contact">Contact</a>
+    
+  </span>
+</nav>
+<main id="main">
+<h1>04 Adaptive geometric attitude control (sketch)</h1>
+<p><strong>Goal.</strong> Keep tracking when the inertia J is uncertain (payload change).</p>
+<p><strong>Idea.</strong> Write the control with an estimate J_hat and let a Lyapunov
+function with a parameter-error term drive the update law. This extends the
+Lyapunov argument already used in <code>GeometricAttitudeController</code>.</p>
+<p><strong>Candidate Lyapunov function.</strong></p>
+<pre><code>V = 0.5 eW^T J eW + kR Psi(R, Rd) + c eR . eW + (1/2g) tr(Jt^T Jt)
+Jt = J_hat - J        # parameter error, unknown but constant
+</code></pre>
+<h2>Algorithm</h2>
+<pre><code>M      = -kR eR - kW eW + W x J_hat W - J_hat ff        # same form, J_hat in place of J
+regress: write  W x J W - J ff = Y(W, ff) theta   with theta = vec(J)   (6 unique entries)
+update:  theta_hat_dot = -g Y^T (eW + c eR)             # g is the adaptation gain
+project  theta_hat so J_hat stays symmetric positive definite
+</code></pre>
+<p>Expected result: V_dot &lt;= 0, giving eR, eW -&gt; 0 (Barbalat), but J_hat need not
+converge to J without persistent excitation.</p>
+<h2>Variants to compare</h2>
+<ul>
+<li>Sliding-mode attitude control with a boundary layer for matched disturbances.</li>
+<li>Disturbance observer (extended-state Kalman filter from <code>kalman.py</code>) feeding
+  a feedforward term instead of changing the gain structure.</li>
+</ul>
+<h2>Open questions</h2>
+<ul>
+<li>The cross term c eR . eW needs a bound on c to keep V positive definite;
+  derive the explicit bound before implementing.</li>
+<li>Robustness to unmodelled torque noise: add sigma modification or a dead zone.</li>
+</ul><div class="pager"><a href="03_geometric_mpc.html">&larr; 03 Geometric MPC on SO(3) / SE(3) (sketch)</a><a href="05_estimation_control_loop.html">05 Estimation to control loop (sketch) &rarr;</a></div>
+</main>
+<footer>
+  <p>coh-thread &middot; a foundation for high-consequence operations &middot;
+     <a href="mailto:realsaimohanty@gmail.com">realsaimohanty@gmail.com</a> &middot; <a href="../code/index.html">read the source</a></p>
+  <p>Research-grade, uncertified code. Use it as one layer of protection, never the only one.</p>
+</footer>
+
+</body>
+</html>

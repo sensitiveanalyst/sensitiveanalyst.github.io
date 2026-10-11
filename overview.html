@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Overview | coh-thread</title>
+<meta name="description" content="A control systems suite: filters, Lyapunov methods, geometric control, PMP.">
+<script>document.documentElement.className += " js";</script>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=IBM+Plex+Sans:wght@400;500&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<nav class="top">
+  <a class="mark" href="index.html">coh-thread</a>
+  <span class="links">
+    <a href="library.html">Library</a>
+    <a href="notes/index.html">Notes</a>
+    <a href="code/index.html">Code</a>
+    <a href="overview.html">Overview</a>
+    <a href="index.html#contact">Contact</a>
+    
+  </span>
+</nav>
+<main id="main">
+<h1>Backend: control systems suite</h1>
+<p>Original implementations, written from the published methods. No code was
+copied from another repository.</p>
+<pre><code>backend/
+  control/
+    kalman.py      KF, EKF, UKF
+    lyapunov.py    Lyapunov equation, LQR, V-dot checks, pendulum swing-up
+    so3.py         hat, vee, exp, log
+    geometric.py   SO(3) attitude controller, SE(3) quadrotor controller
+    smooth.py      smooth replacements for kinks, smooth torque-bound cost, STL robustness
+    continuity.py  find jumps and kinks in a sampled signal
+    pmp.py         Pontryagin minimum principle by shooting (free final time, continuation)
+    geometric_pmp.py  geometric PMP for rigid-body attitude (Lie-Poisson reduced)
+    notes/         theoretical pipelines (01-06 sketches, 07-10 outlines with status lines)
+  tests/
+</code></pre>
+<p>Run the tests:</p>
+<pre><code>cd backend
+pip install -r requirements.txt
+python -m pytest
+</code></pre>
+<p>References: Lee, Leok, McClamroch, "Geometric tracking control of a quadrotor
+UAV on SE(3)", CDC 2010; Julier and Uhlmann on the unscented transform;
+Barrau and Bonnabel on the invariant EKF; Mahony, Hamel, Pflimlin on
+nonlinear complementary filters on SO(3).</p>
+<p>Known limits:
+- The SE(3) controller omits the desired angular velocity and acceleration terms,
+  so use it for slowly varying references.
+- The SE(3) controller's desired-attitude normalisations are smoothed by default
+  (<code>thrust_eps=0.02</code>, <code>heading="tilt_twist"</code>); pass <code>thrust_eps=0, heading="projection"</code>
+  for the paper's exact construction. The singularities move to downward-thrust commands;
+  stability of the smoothed variant is checked in simulation, not proven.
+- PMP shooting finds normal extremals only, needs a costate guess, and has no
+  second-order (conjugate point) test. Convergence for large rotations or small
+  smoothing widths may need <code>angle_steps &gt; 1</code> or continuation.
+- The extremals are first-order optimal (checked by a KKT test); global optimality
+  is not proven for non-convex cases.</p>
+</main>
+<footer>
+  <p>coh-thread &middot; a foundation for high-consequence operations &middot;
+     <a href="mailto:realsaimohanty@gmail.com">realsaimohanty@gmail.com</a> &middot; <a href="code/index.html">read the source</a></p>
+  <p>Research-grade, uncertified code. Use it as one layer of protection, never the only one.</p>
+</footer>
+
+</body>
+</html>

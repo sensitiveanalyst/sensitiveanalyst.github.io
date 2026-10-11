@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>02 CLF-CBF quadratic program safety filter (sketch) | coh-thread</title>
+
+<script>document.documentElement.className += " js";</script>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=IBM+Plex+Sans:wght@400;500&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../style.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<nav class="top">
+  <a class="mark" href="../index.html">coh-thread</a>
+  <span class="links">
+    <a href="../library.html">Library</a>
+    <a href="../notes/index.html">Notes</a>
+    <a href="../code/index.html">Code</a>
+    <a href="../overview.html">Overview</a>
+    <a href="../index.html#contact">Contact</a>
+    
+  </span>
+</nav>
+<main id="main">
+<h1>02 CLF-CBF quadratic program safety filter (sketch)</h1>
+<p><strong>Goal.</strong> Track a goal with a Lyapunov guarantee while a barrier function
+keeps the state inside a safe set, solved as a small QP at every step.</p>
+<p><strong>Model.</strong> Control-affine system x' = f(x) + g(x) u.</p>
+<ul>
+<li>Control Lyapunov function V(x) &gt;= 0 with inf_u [L_f V + L_g V u] &lt;= -gamma V.</li>
+<li>Control barrier function h(x), safe set {h &gt;= 0}, requirement
+  L_f h + L_g h u &gt;= -alpha(h).</li>
+</ul>
+<h2>Algorithm</h2>
+<pre><code>every control step:
+  read x
+  solve over (u, delta):
+      min   0.5 |u - u_nom|^2  +  p delta^2
+      s.t.  L_f V + L_g V u &lt;= -gamma V + delta      # CLF, relaxed by delta
+            L_f h + L_g h u &gt;=  -alpha(h)            # CBF, hard constraint
+            u_min &lt;= u &lt;= u_max
+  apply u
+</code></pre>
+<p>The CLF constraint is relaxed so that safety always wins when the two
+conflict. <code>lyapunov.py</code> already provides the quadratic V from <code>lqr</code>:
+V = x^T P x, so L_f V and L_g V are 2 x^T P (A x) and 2 x^T P B.</p>
+<h2>Pitfalls</h2>
+<ul>
+<li>The QP can be infeasible when the CBF is not valid under the input limits.
+  Check the relative degree and add input-constrained CBF conditions.</li>
+<li>With relative degree 2 or higher, use a high-order CBF (a chain of
+  class-K functions) or exponential CBF.</li>
+<li>The relaxation delta means the origin is only attractive when no conflict
+  occurs; there can be undesired equilibria at the safe-set boundary.</li>
+</ul>
+<h2>Tests to write</h2>
+<ul>
+<li>Single integrator avoiding a disc: check h stays &gt;= 0 under a tight u bound.</li>
+<li>Report how often the QP is infeasible across random starts.</li>
+</ul><div class="pager"><a href="01_invariant_ekf.html">&larr; 01 Invariant EKF on a matrix Lie group (sketch)</a><a href="03_geometric_mpc.html">03 Geometric MPC on SO(3) / SE(3) (sketch) &rarr;</a></div>
+</main>
+<footer>
+  <p>coh-thread &middot; a foundation for high-consequence operations &middot;
+     <a href="mailto:realsaimohanty@gmail.com">realsaimohanty@gmail.com</a> &middot; <a href="../code/index.html">read the source</a></p>
+  <p>Research-grade, uncertified code. Use it as one layer of protection, never the only one.</p>
+</footer>
+
+</body>
+</html>

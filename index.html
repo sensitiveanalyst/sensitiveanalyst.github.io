@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>coh-thread</title>
+<meta name="description" content="coh-thread: terminal functions for high-operation and catastrophe-prevention environments. Free, open, and honest about limits.">
+<script>document.documentElement.className += " js";</script>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=IBM+Plex+Sans:wght@400;500&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<nav class="top">
+  <a class="mark" href="index.html">coh-thread</a>
+  <span class="links">
+    <a href="library.html">Library</a>
+    <a href="notes/index.html">Notes</a>
+    <a href="code/index.html">Code</a>
+    <a href="overview.html">Overview</a>
+    <a href="index.html#contact">Contact</a>
+    
+  </span>
+</nav>
+<main id="main">
+<section class="hero">
+  <div class="hero-text">
+    <p class="eyebrow">A foundation for high-consequence operations</p>
+    <h1>coh-thread</h1>
+    <p class="lede">Terminal functions for high-operation and catastrophe-prevention environments: estimation, stability checks, command limits and monitors that you can call from a terminal or a script.</p>
+    <p class="sub">Free, open, and written to say plainly what each function does, why it matters when failure is costly, and where it stops.</p>
+    <p class="actions">
+      <a class="btn" href="library.html">Browse the library</a>
+      <a class="btn ghost" href="#contact">Customization &amp; contact</a>
+    </p>
+  </div>
+  <figure class="hero-fig">
+    <svg viewBox="0 0 450 300" role="img" aria-labelledby="hero-t hero-d">
+  <title id="hero-t">The absolute value and its smooth replacement</title>
+  <desc id="hero-d">A V-shaped line with a sharp corner at zero, and a curve that rounds the corner and stays at most eps below the V.</desc>
+  <line class="fig-axis" x1="30" y1="240" x2="390" y2="240"/>
+  <line class="fig-axis" x1="205.0" y1="30" x2="205.0" y2="246"/>
+  <polyline class="fig-corner" points="30.0,40.0 34.4,45.0 38.8,50.0 43.1,55.0 47.5,60.0 51.9,65.0 56.2,70.0 60.6,75.0 65.0,80.0 69.4,85.0 73.8,90.0 78.1,95.0 82.5,100.0 86.9,105.0 91.2,110.0 95.6,115.0 100.0,120.0 104.4,125.0 108.7,130.0 113.1,135.0 117.5,140.0 121.9,145.0 126.3,150.0 130.6,155.0 135.0,160.0 139.4,165.0 143.8,170.0 148.1,175.0 152.5,180.0 156.9,185.0 161.2,190.0 165.6,195.0 170.0,200.0 174.4,205.0 178.8,210.0 183.1,215.0 187.5,220.0 191.9,225.0 196.2,230.0 200.6,235.0 205.0,240.0 209.4,235.0 213.8,230.0 218.1,225.0 222.5,220.0 226.9,215.0 231.2,210.0 235.6,205.0 240.0,200.0 244.4,195.0 248.8,190.0 253.1,185.0 257.5,180.0 261.9,175.0 266.2,170.0 270.6,165.0 275.0,160.0 279.4,155.0 283.8,150.0 288.1,145.0 292.5,140.0 296.9,135.0 301.2,130.0 305.6,125.0 310.0,120.0 314.4,115.0 318.8,110.0 323.1,105.0 327.5,100.0 331.9,95.0 336.2,90.0 340.6,85.0 345.0,80.0 349.4,75.0 353.8,70.0 358.1,65.0 362.5,60.0 366.9,55.0 371.2,50.0 375.6,45.0 380.0,40.0"/>
+  <polyline class="fig-smooth" points="30.0,83.8 34.4,88.7 38.8,93.5 43.1,98.4 47.5,103.2 51.9,108.0 56.2,112.8 60.6,117.6 65.0,122.4 69.4,127.1 73.8,131.9 78.1,136.6 82.5,141.3 86.9,146.0 91.2,150.7 95.6,155.4 100.0,160.0 104.4,164.6 108.7,169.2 113.1,173.7 117.5,178.2 121.9,182.6 126.3,187.0 130.6,191.4 135.0,195.7 139.4,199.9 143.8,204.0 148.1,208.0 152.5,211.9 156.9,215.7 161.2,219.3 165.6,222.7 170.0,226.0 174.4,229.0 178.8,231.7 183.1,234.1 187.5,236.1 191.9,237.8 196.2,239.0 200.6,239.8 205.0,240.0 209.4,239.8 213.8,239.0 218.1,237.8 222.5,236.1 226.9,234.1 231.2,231.7 235.6,229.0 240.0,226.0 244.4,222.7 248.8,219.3 253.1,215.7 257.5,211.9 261.9,208.0 266.2,204.0 270.6,199.9 275.0,195.7 279.4,191.4 283.8,187.0 288.1,182.6 292.5,178.2 296.9,173.7 301.2,169.2 305.6,164.6 310.0,160.0 314.4,155.4 318.8,150.7 323.1,146.0 327.5,141.3 331.9,136.6 336.2,131.9 340.6,127.1 345.0,122.4 349.4,117.6 353.8,112.8 358.1,108.0 362.5,103.2 366.9,98.4 371.2,93.5 375.6,88.7 380.0,83.8"/>
+  <circle class="fig-dot" cx="205.0" cy="240.0" r="4"/>
+  <line class="fig-gap" x1="389.0" y1="40.0" x2="389.0" y2="83.8"/>
+  <text x="396.0" y="66.9">&#8804; eps</text>
+  <text x="32.0" y="32.0">|x|</text>
+  <text class="fig-note" x="193.0" y="268" text-anchor="end">corner: no slope</text>
+  <text class="fig-smooth-label" x="217.0" y="268">smooth_abs(x, eps)</text>
+</svg>
+    <figcaption>A small example of the approach. <code>|x|</code> has a corner where the slope is undefined. <code>smooth_abs</code> stays within <code>eps</code> of it and has a slope everywhere.</figcaption>
+  </figure>
+</section>
+
+<section class="band" id="mission">
+  <h2>Why this exists</h2>
+  <p class="lead">Some systems cannot be restarted after they fail: an aircraft in flight, a process plant, a cooling or power loop, a control room at three in the morning. Much of the tooling built around such systems is built to be faster, cheaper or more profitable. coh-thread is built for the other job: making the unrecoverable event less likely, and saying so honestly when it cannot.</p>
+  <div class="grid3">
+    <article class="card">
+      <h3>Prevention, not optimisation</h3>
+      <p>We do not optimise for speed, throughput, revenue or engagement. The work is measured by what it helps avoid.</p>
+    </article>
+    <article class="card">
+      <h3>Not for sale</h3>
+      <p>The library is free to read and run, and its source is readable on this site. coh-thread is not selling you anything, and nothing here is built to take money from the people who use it.</p>
+    </article>
+    <article class="card">
+      <h3>Honest about limits</h3>
+      <p>Every entry in the library says where it stops. A tool that overstates what it guarantees is itself a hazard.</p>
+    </article>
+  </div>
+</section>
+
+<section class="band" id="suite">
+  <h2>The suite</h2>
+  <p>34 public functions and classes in 8 modules, as one importable Python package. Hover a name for a one-line summary. The <a href="library.html">library page</a> gives the full justification for each, with runnable examples.</p>
+  <div class="mods"><article class="card mod-card">
+  <p class="role">Estimate &middot; <code>kalman</code></p>
+  <h3><a href="library.html#mod-kalman">Know the state you cannot measure directly</a></h3>
+  <ul class="names"><li><a href="library.html#fn-KalmanFilter" title="Linear estimator: the best guess of the state, and how unsure it is.">KalmanFilter</a></li><li><a href="library.html#fn-ExtendedKalmanFilter" title="The same idea for nonlinear systems, linearised at every step.">ExtendedKalmanFilter</a></li><li><a href="library.html#fn-UnscentedKalmanFilter" title="A nonlinear estimator that needs no Jacobians.">UnscentedKalmanFilter</a></li></ul>
+</article><article class="card mod-card">
+  <p class="role">Certify &middot; <code>lyapunov</code></p>
+  <h3><a href="library.html#mod-lyapunov">Show the system settles, or find where it does not</a></h3>
+  <ul class="names"><li><a href="library.html#fn-is_hurwitz" title="Yes or no: do small disturbances to a linear system die out?">is_hurwitz</a></li><li><a href="library.html#fn-lyapunov_equation" title="Builds a stability certificate for a linear system.">lyapunov_equation</a></li><li><a href="library.html#fn-lqr" title="A stabilising feedback gain, with its certificate attached.">lqr</a></li><li><a href="library.html#fn-check_vdot_negative" title="Try to break a stability claim by sampling.">check_vdot_negative</a></li><li><a href="library.html#fn-PendulumSwingUp" title="A worked hybrid controller: pump energy, then catch with LQR.">PendulumSwingUp</a></li></ul>
+</article><article class="card mod-card">
+  <p class="role">Orient &middot; <code>so3</code></p>
+  <h3><a href="library.html#mod-so3">Rotations without the usual traps</a></h3>
+  <ul class="names"><li><a href="library.html#fn-hat" title="Turns a 3-vector into the matrix that does a cross product.">hat</a></li><li><a href="library.html#fn-vee" title="The inverse of hat.">vee</a></li><li><a href="library.html#fn-exp_so3" title="Rotation vector in, valid rotation matrix out.">exp_so3</a></li><li><a href="library.html#fn-log_so3" title="Rotation matrix in, &quot;how far and about which axis&quot; out.">log_so3</a></li></ul>
+</article><article class="card mod-card">
+  <p class="role">Command &middot; <code>geometric</code></p>
+  <h3><a href="library.html#mod-geometric">Steer attitude and position on rotation matrices</a></h3>
+  <ul class="names"><li><a href="library.html#fn-GeometricAttitudeController" title="Steers a rigid body&#x27;s orientation to a target, from almost any start.">GeometricAttitudeController</a></li><li><a href="library.html#fn-QuadrotorSE3Controller" title="Holds a quadrotor at a target position, or moves it slowly to one.">QuadrotorSE3Controller</a></li></ul>
+</article><article class="card mod-card">
+  <p class="role">Bound &middot; <code>smooth</code></p>
+  <h3><a href="library.html#mod-smooth">Remove the kinks, keep the limits</a></h3>
+  <ul class="names"><li><a href="library.html#fn-smooth_abs" title="|x| without the corner.">smooth_abs</a></li><li><a href="library.html#fn-smooth_sign" title="sign(x) without the instant flip.">smooth_sign</a></li><li><a href="library.html#fn-smooth_normalize" title="v / |v| that stays defined at zero.">smooth_normalize</a></li><li><a href="library.html#fn-softplus" title="max(x, 0) with a smooth knee.">softplus</a></li><li><a href="library.html#fn-smooth_max" title="Largest of a list, smoothly, and never understated.">smooth_max</a></li><li><a href="library.html#fn-smooth_min" title="Smallest of a list, smoothly, and never overstated.">smooth_min</a></li><li><a href="library.html#fn-tanh_sat" title="A command limit that is smooth and cannot be exceeded.">tanh_sat</a></li><li><a href="library.html#fn-bump_step" title="A perfectly smooth 0-to-1 ramp.">bump_step</a></li><li><a href="library.html#fn-smooth_switch" title="Hand over smoothly from one behaviour to another.">smooth_switch</a></li><li><a href="library.html#fn-barrier_cost" title="An actuator limit written as a smooth cost.">barrier_cost</a></li><li><a href="library.html#fn-barrier_control" title="The best command under that cost, and it respects the limit.">barrier_control</a></li><li><a href="library.html#fn-smooth_always" title="Safety monitor, &quot;is every margin positive?&quot;, that errs towards caution.">smooth_always</a></li><li><a href="library.html#fn-smooth_eventually" title="Monitor, &quot;did it reach the goal at least once?&quot;">smooth_eventually</a></li></ul>
+</article><article class="card mod-card">
+  <p class="role">Watch &middot; <code>continuity</code></p>
+  <h3><a href="library.html#mod-continuity">Find the jumps your logs already contain</a></h3>
+  <ul class="names"><li><a href="library.html#fn-find_breaks" title="Scan a logged signal for jumps and kinks.">find_breaks</a></li><li><a href="library.html#fn-Break" title="The record find_breaks returns.">Break</a></li></ul>
+</article><article class="card mod-card">
+  <p class="role">Plan &middot; <code>pmp</code></p>
+  <h3><a href="library.html#mod-pmp">Optimal manoeuvres, with the conditions written down</a></h3>
+  <ul class="names"><li><a href="library.html#fn-PMPShooting" title="Plan an optimal manoeuvre by solving its necessary conditions.">PMPShooting</a></li><li><a href="library.html#fn-Extremal" title="What PMPShooting.solve returns.">Extremal</a></li></ul>
+</article><article class="card mod-card">
+  <p class="role">Plan &middot; <code>geometric_pmp</code></p>
+  <h3><a href="library.html#mod-geometric_pmp">Optimal rotation of a rigid body, without leaving SO(3)</a></h3>
+  <ul class="names"><li><a href="library.html#fn-AttitudePMP" title="Plan an optimal rotation of a rigid body, torque limits included.">AttitudePMP</a></li><li><a href="library.html#fn-AttitudeExtremal" title="What AttitudePMP.solve returns.">AttitudeExtremal</a></li><li><a href="library.html#fn-magnus_rotation" title="Integrate an angular-velocity history into an orientation, without drift.">magnus_rotation</a></li></ul>
+</article></div>
+</section>
+
+<section class="band" id="principles">
+  <h2>How we work</h2>
+  <ul class="rules">
+    <li><strong>Proof and evidence are labelled differently.</strong> <code>check_vdot_negative</code> says it can only falsify a stability claim, never prove one. The smoothed quadrotor controller says its stability is checked in simulation, not proven.</li>
+    <li><strong>Failure is loud.</strong> <code>lyapunov_equation</code> refuses an unstable system instead of returning a false certificate. <code>PMPShooting.solve</code> raises an error when it does not converge instead of handing back a plausible trajectory.</li>
+    <li><strong>Bounds hold by construction.</strong> <code>tanh_sat</code> and <code>barrier_control</code> cannot leave their limits. <code>smooth_always</code> can raise a false alarm, but it cannot call a violated margin safe.</li>
+    <li><strong>The unfinished parts are written down.</strong> Each of the 10 <a href="notes/index.html">theory notes</a> states what it assumes and what is still unresolved.</li>
+  </ul>
+</section>
+
+<section class="band" id="roadmap">
+  <h2>Where it stands</h2>
+  <ul class="timeline">
+    <li>
+      <span class="tag now">Available</span>
+      <div><strong>The control suite.</strong> Estimation, stability certificates, geometric control on SO(3) and SE(3), smooth replacements for kinks, discontinuity detection, and Pontryagin-based planning. The source and the theory notes are readable on this site.</div>
+    </li>
+    <li>
+      <span class="tag next">Planned</span>
+      <div><strong>Vision-model support.</strong> Terminal functions that bring vision-model output into the same toolkit for operations. No vision code exists in the repository yet.</div>
+    </li>
+    <li>
+      <span class="tag open">Open question</span>
+      <div><strong>What a vision model may be trusted with.</strong> A model that sees is also a new way to be wrong. If you run operations with a camera or a vision model in the loop, tell us what it must and must not be allowed to decide.</div>
+    </li>
+  </ul>
+</section>
+
+<aside class="notice" id="limits">
+  <h2>Read before relying on it</h2>
+  <p>This is research-grade code. Its tests are simulations and known-answer checks. It carries no safety certification and no independent audit, and we do not claim it has been validated on real plants. Use it as one layer among several, as a second opinion, a monitor or a way to test an argument. Never use it as the only barrier between a fault and a catastrophe.</p>
+</aside>
+
+<section class="band" id="contact">
+  <h2>Customization and contact</h2>
+  <div class="contact">
+    <p>The examples in the library are small. Your system is not. If you need the suite fitted to your environment, or you have a question, a bug report or a hazard we have missed, write to:</p>
+    <p class="email"><a id="email-address" href="mailto:realsaimohanty@gmail.com?subject=coh-thread%3A%20customization%20or%20question&amp;body=Hello%2C%0D%0A%0D%0AWhat%20the%20system%20is%3A%0D%0A%0D%0AWhat%20must%20never%20happen%3A%0D%0A%0D%0ASensors%20and%20actuators%20involved%3A%0D%0A%0D%0ALimits%20and%20constraints%2C%20in%20numbers%20if%20you%20have%20them%3A%0D%0A%0D%0AWhat%20you%20would%20like%20from%20coh-thread%3A%0D%0A">realsaimohanty@gmail.com</a> <button type="button" class="copy" data-copy="realsaimohanty@gmail.com" data-target="email-address">Copy address</button></p>
+    <h3>Customization can mean</h3>
+    <ul>
+      <li>Fitting a function to your model: your dynamics, inertias, Jacobians and limits.</li>
+      <li>Tuning monitors and break detection to your sample rate and noise.</li>
+      <li>Adding or extending terminal functions for your operators' workflow.</li>
+      <li>Vision-model support, once you tell us the use case.</li>
+    </ul>
+    <h3>What helps us help you</h3>
+    <p>What the system is, what must never happen, which sensors and actuators are involved, and the limits you know in numbers. The address above opens a message with these prompts already filled in.</p>
+  </div>
+</section>
+
+</main>
+<footer>
+  <p>coh-thread &middot; a foundation for high-consequence operations &middot;
+     <a href="mailto:realsaimohanty@gmail.com">realsaimohanty@gmail.com</a> &middot; <a href="code/index.html">read the source</a></p>
+  <p>Research-grade, uncertified code. Use it as one layer of protection, never the only one.</p>
+</footer>
+<script>
+(function () {
+  // Email links do not work everywhere, so the address is also plain text with a copy button.
+  Array.prototype.forEach.call(document.querySelectorAll(".copy"), function (btn) {
+    var label = btn.textContent;
+    function flash(text) { btn.textContent = text; setTimeout(function () { btn.textContent = label; }, 2200); }
+    function select() {
+      var node = document.getElementById(btn.getAttribute("data-target")), sel = window.getSelection(), r = document.createRange();
+      r.selectNodeContents(node); sel.removeAllRanges(); sel.addRange(r);
+      flash("Selected: now copy it");
+    }
+    btn.addEventListener("click", function () {
+      var text = btn.getAttribute("data-copy");
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(function () { flash("Copied"); }, select);
+      } else { select(); }
+    });
+  });
+})();
+</script>
+</body>
+</html>

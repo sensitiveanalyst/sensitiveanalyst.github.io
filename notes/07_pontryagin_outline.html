@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>07 Pontryagin minimum principle: rough outline | coh-thread</title>
+
+<script>document.documentElement.className += " js";</script>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=IBM+Plex+Sans:wght@400;500&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../style.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<nav class="top">
+  <a class="mark" href="../index.html">coh-thread</a>
+  <span class="links">
+    <a href="../library.html">Library</a>
+    <a href="../notes/index.html">Notes</a>
+    <a href="../code/index.html">Code</a>
+    <a href="../overview.html">Overview</a>
+    <a href="../index.html#contact">Contact</a>
+    
+  </span>
+</nav>
+<main id="main">
+<h1>07 Pontryagin minimum principle: rough outline</h1>
+<p><strong>Status.</strong> Implemented and tested: <code>pmp.py</code> (indirect shooting, free final time,
+continuation). Sections marked <em>sketch</em> are not implemented.</p>
+<h2>1. Problem</h2>
+<pre><code>min  phi(x(T)) + int_0^T L(x,u) dt     s.t.  x' = f(x,u),  u(t) in U,  x(0) = x0
+terminal set S: a point, all of R^n, or {psi(x) = 0};  T fixed or free
+</code></pre>
+<h2>2. Necessary conditions (minimum form; Pontryagin's original is a maximum)</h2>
+<p><code>H(x,lam,u) = lam0 L + lam . f</code>, <code>lam0</code> in {0, 1}, <code>(lam0, lam) != 0</code>.
+1. <code>x' = dH/dlam</code>, <code>lam' = -dH/dx</code> (u held fixed).
+2. <code>u*(t) = argmin_{u in U} H(x*, lam, u)</code> almost everywhere.
+3. Transversality: <code>lam(T) - lam0 grad phi</code> annihilates the tangent space of S at x(T).
+   Fixed endpoint: no condition on lam(T). Free endpoint: <code>lam(T) = lam0 grad phi</code>.
+4. Autonomous problem: H is constant along the extremal. Free T with phi independent
+   of T: <code>H = 0</code>.</p>
+<p><code>lam0 = 0</code> (abnormal) means the extremal ignores the cost. The code fixes <code>lam0 = 1</code>
+and cannot find abnormal extremals.</p>
+<h2>3. Pipeline: indirect shooting (what <code>PMPShooting.solve</code> does)</h2>
+<pre><code>unknowns z = (lam(0), log T)                         # log T keeps T positive
+residual(z):
+    integrate (x, lam, cost) on tau in [0,1] with time scaled by T, u = argmin H
+    r = [ x_i(T) - xT_i            fixed components
+          lam_i(T) - dphi/dx_i     free components
+          H(T)                     if T is free ]
+solve residual(z) = 0 by Newton / hybr with a finite-difference Jacobian
+</code></pre>
+<p>Sensitivity grows like exp(L T) for the Hamiltonian flow. If single shooting
+stalls, use multiple shooting: unknowns <code>(x_k, lam_k)</code> per segment, continuity as
+extra residuals, block-sparse Newton. <em>Sketch.</em></p>
+<p><strong>Initialisation pipeline</strong> <em>(sketch)</em>: direct method first (discretise u, solve the
+NLP), read the dynamics multipliers as a costate guess (covector mapping
+principle), then polish with indirect shooting. Pure shooting needs a good
+<code>lam(0)</code>; the code gets one from the double-integrator closed form.</p>
+<h2>4. Where kinks come from</h2>
+<ul>
+<li>H affine in u (time-optimal, fuel-optimal): <code>u* = -u_max sign(sigma(t))</code> with
+  switching function <code>sigma = lam . g(x)</code>. Jumps in u*. If sigma vanishes on an interval
+  the arc is singular: differentiate sigma until u appears (Kelley, Goh conditions).</li>
+<li>Fuller's problem (<code>x'' = u</code>, <code>|u| &lt;= 1</code>, cost <code>int x^2</code>) has infinitely many
+  switches in finite time (chattering).</li>
+<li>H strictly convex in u with a box U: <code>u* = clip(argmin_free)</code>, a kink in the map
+  <code>lam -&gt; u*</code>.</li>
+<li>State constraints <code>c(x) &lt;= 0</code>: the costate can jump at junctions.</li>
+</ul>
+<p>All of these make the shooting map non-smooth. Note 09 replaces them with smooth
+modifiers, and <code>smooth.barrier_*</code> does it inside the cost so the PMP still applies.</p>
+<h2>5. Second-order conditions and feedback <em>(sketch)</em></h2>
+<p>Legendre-Clebsch: <code>H_uu &gt;= 0</code> along an interior extremal. With
+<code>A = f_x, B = f_u, Q = H_xx, S = H_ux, R = H_uu</code> the second variation gives</p>
+<pre><code>du = -R^-1 (S dx + B^T dlam)
+P' = -P(A - B R^-1 S) - (A - B R^-1 S)^T P + P B R^-1 B^T P - (Q - S^T R^-1 S),  P(T) = phi_xx
+neighbouring-extremal feedback:  du = -R^-1 (S + B^T P) dx
+</code></pre>
+<p>If P blows up before t = 0 there is a conjugate point and the extremal is not locally
+optimal beyond it. For linear dynamics with convex cost the extremal is globally optimal.
+This P(t) is a route from an open-loop PMP solution to a time-varying feedback gain.</p>
+<h2>6. What the tests check</h2>
+<ul>
+<li>Min-energy double integrator against the closed form <code>u = 6/T^2 - 12 t/T^3</code>.</li>
+<li>Finite-difference costate rate against the analytic one.</li>
+<li>Free terminal state against the Riccati solution <code>P(0) = tanh(T + atanh s)</code>.</li>
+<li>Smoothed min-time: <code>2 &lt;= T_eps &lt;= 2 (1 + eps ln 2)</code>, monotone to 2, H = 0, control
+  inside the bound, and one sign change.</li>
+</ul>
+<h2>7. Open questions</h2>
+<ul>
+<li>Abnormal extremals and rank-deficient endpoints are not handled.</li>
+<li>Singular arcs need a different u* (from <code>sigma = 0</code> and its derivatives).</li>
+<li>No second-order test is run in code yet.</li>
+</ul><div class="pager"><a href="06_attitude_observer.html">&larr; 06 Nonlinear complementary attitude observer on SO(3) (sketch)</a><a href="08_geometric_pmp.html">08 Geometric PMP on manifolds and Lie groups &rarr;</a></div>
+</main>
+<footer>
+  <p>coh-thread &middot; a foundation for high-consequence operations &middot;
+     <a href="mailto:realsaimohanty@gmail.com">realsaimohanty@gmail.com</a> &middot; <a href="../code/index.html">read the source</a></p>
+  <p>Research-grade, uncertified code. Use it as one layer of protection, never the only one.</p>
+</footer>
+
+</body>
+</html>

@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>10 Flat connections, Lie algebras and characteristics | coh-thread</title>
+
+<script>document.documentElement.className += " js";</script>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=IBM+Plex+Sans:wght@400;500&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../style.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<nav class="top">
+  <a class="mark" href="../index.html">coh-thread</a>
+  <span class="links">
+    <a href="../library.html">Library</a>
+    <a href="../notes/index.html">Notes</a>
+    <a href="../code/index.html">Code</a>
+    <a href="../overview.html">Overview</a>
+    <a href="../index.html#contact">Contact</a>
+    
+  </span>
+</nav>
+<main id="main">
+<h1>10 Flat connections, Lie algebras and characteristics</h1>
+<p><strong>Status.</strong> Outline only; no code, except that <code>geometric_pmp.py</code> is an instance of
+sections 1 and 4. Statements I derived by hand are marked <em>(derived)</em>; <em>(literature)</em>
+means recalled from memory, so check before citing.</p>
+<p><strong>Two meanings of flat.</strong> Differential flatness (outputs from which states and inputs are
+algebraic functions, Fliess et al. 1995) turns the quadrotor into four chains of integrators
+in <code>(x, yaw)</code> and makes minimum-snap polynomial <em>(literature: Mellinger and Kumar)</em>. A
+flat connection is a connection with zero curvature. This note is about the second.</p>
+<h2>1. Connections on a Lie group <em>(derived)</em></h2>
+<p>Maurer-Cartan form <code>theta = g^-1 dg</code> satisfies <code>d theta + (1/2)[theta, theta] = 0</code>.
+Three connections on left-invariant fields X, Y, Z:
+| Connection | <code>nabla_X Y</code> | Torsion | Curvature |
+|------------|-------------|---------|-----------|
+| (-) Cartan-Schouten | 0 | <code>-[X,Y]</code> | 0 (flat) |
+| (+) | <code>[X,Y]</code> | <code>[X,Y]</code> | 0 (flat) |
+| (0) Levi-Civita for a bi-invariant metric | <code>(1/2)[X,Y]</code> | 0 | <code>R(X,Y)Z = -(1/4)[[X,Y],Z]</code> |</p>
+<p>Consequences for control:
+- <strong>No holonomy under (-).</strong> Parallel transport is left translation, so left-trivialised
+  velocities and costates at different times can be compared directly. That is why the
+  PMP reduces to ODEs on <code>g*</code> and the group appears only in the reconstruction.
+- <strong>Covariant derivative under (0).</strong> <code>D_t W = W' + (1/2)[xi, W]</code>. Using it, the Riemannian
+  cubic equation <code>D^3 v + R(Dv, v)v = 0</code> becomes <code>v''' + [v, v''] = 0</code>, the same equation the
+  reduced PMP gives for a spherical body (note 08).
+- <strong>Curvature and conjugate points.</strong> <code>&lt;R(X,Y)Y, X&gt; = (1/4)|[X,Y]|^2 &gt;= 0</code>: SO(3) with the metric
+  <code>|xi| = |rotation vector|</code> has constant sectional curvature 1/4 (it is RP^3 of radius 2).
+  Jacobi fields oscillate, the first conjugate point of a geodesic is at rotation angle
+  2 pi, and the cut locus of the identity is the set of rotations by pi, where <code>log_so3</code> is
+  singular. Extremals that wrap past it stop being optimal.</p>
+<h2>2. Zero curvature as integrability</h2>
+<p><code>g^-1 dg = A</code> has a solution exactly when <code>dA + (1/2)[A, A] = 0</code>.
+- <strong>Time only (1-D base).</strong> Always satisfied, so <code>R' = R hat(W)</code> always integrates; the
+  Magnus step in the code is a solver for that fact.
+- <strong>Space and time (2-D base).</strong> For <code>R_s = R hat(u)</code>, <code>R_t = R hat(w)</code> the condition is
+  <code>u_t - w_s = u x w</code> <em>(derived)</em>. It couples the controls along a rod, continuum robot or
+  flexible structure, and the adjoint of a PDE-constrained PMP has the same form. <em>Sketch.</em>
+- <strong>Lax form.</strong> An extremal flow that can be written <code>L' = [L, M]</code> has the isospectral
+  invariants as first integrals; with a spectral parameter that is a zero-curvature
+  condition. Examples: Manakov's rigid body on so(n), elastica on SE(2) <em>(literature:
+  Jurdjevic, Geometric Control Theory)</em>. Use: extra invariants to test the solver, and
+  fewer shooting unknowns when the flow is Liouville integrable.</p>
+<h2>3. Curvature as control authority <em>(literature, sketch)</em></h2>
+<p>For a distribution given by a connection, the curvature is the Lie bracket of horizontal
+fields. Net motion from a closed loop in the base is proportional to enclosed area times
+curvature (Wong's equations, falling cat, parking a car). Flat means no motion from cycling
+controls. Chow-Rashevskii: brackets spanning the tangent space give controllability.</p>
+<h2>4. Method of characteristics</h2>
+<p>HJB for the cost-to-go: <code>-V_t = H*(x, grad V)</code>, <code>H*(x,p) = min_u [L + p . f]</code>, with Cauchy data
+<code>V(T, .) = phi</code> given at the terminal time.</p>
+<table>
+<thead>
+<tr>
+<th>HJB</th>
+<th>PMP</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>p = grad V</code></td>
+<td>costate <code>lam</code></td>
+</tr>
+<tr>
+<td>characteristic ODE <code>x' = H*_p</code>, <code>p' = -H*_x</code></td>
+<td>Hamiltonian system of the extremal</td>
+</tr>
+<tr>
+<td>Cauchy data <code>p(T) = grad phi</code></td>
+<td>transversality <code>lam(T) = grad phi</code></td>
+</tr>
+<tr>
+<td><code>dV/dt = -L</code> along a characteristic <em>(derived)</em></td>
+<td>accumulated cost</td>
+</tr>
+</tbody>
+</table>
+<p>On a Lie group with left-invariant H the characteristic system is the Lie-Poisson flow plus
+reconstruction, which is what <code>geometric_pmp.py</code> integrates.</p>
+<p><strong>Caustics.</strong> Characteristics cross at conjugate points and the cut locus. Past them the
+smooth solution is multivalued; the value function is the minimum over branches, with a
+kink where branches meet, and the optimal feedback jumps there. That is a continuity break
+in the <em>feedback</em>. Two smoothings:
+- Vanishing viscosity: add <code>e Laplacian(V)</code>, equivalent to noise in the dynamics. For
+  <code>x' = u + sigma w</code> with cost <code>|u|^2/2 + q(x)</code>, the substitution <code>V = -sigma^2 log Z</code>
+  makes the PDE linear (Hopf-Cole) <em>(derived)</em>, so V and the feedback are smooth across the
+  cut locus <em>(literature: Fleming, Kappen path-integral control)</em>.
+- Soften the cost (note 09) so the extremal field has fewer caustics.</p>
+<p><strong>Lyapunov by characteristics.</strong> <code>grad V . f = -q</code> is a first-order PDE whose characteristics
+are the trajectories: <code>V(x0) = int_0^inf q(phi_t(x0)) dt</code> (Zubov-style). For linear f this is
+<code>P = int e^{A^T t} Q e^{A t} dt</code>, the Lyapunov equation <code>lyapunov.py</code> solves.</p>
+<h2>5. Pipeline: smooth geometric PMP to a feedback <em>(sketch)</em></h2>
+<pre><code>1  left-invariant model on G, cost with a smooth bound (barrier)        note 09
+2  reduced Hamiltonian system on g* (+ canonical part)                  geometric_pmp.py
+3  shooting with continuation in the smoothing width                    pmp.py, geometric_pmp.py
+4  reconstruct on G with Magnus                                         geometric_pmp.py
+5  verify: boundary conditions, H constant, KKT check, find_breaks on u(t)
+6  sample many initial states; store (x, lam, V) along extremals        characteristics
+7  fit V_hat(x) to the data; feedback u = argmin_u H(x, grad V_hat, u)  (literature: Nakamura-
+                                                                        Zimmerer, Gong, Kang 2021)
+8  or neighbouring-extremal gains from the Riccati P(t)                 note 07 section 5
+9  close the loop with the estimator                                    note 05
+</code></pre>
+<h2>6. Open questions</h2>
+<ul>
+<li>How the barrier-smoothed cost changes the caustic structure; unknown.</li>
+<li>A usable second-order (conjugate point) test for the second-order SO(3) problem.</li>
+<li>Whether the Lax structure helps for non-spherical inertia (the spherical case reduces to
+  the cubic equation; the general case is Euler-Poinsot-like with control).</li>
+</ul><div class="pager"><a href="09_smoothing_kinks_and_monitors.html">&larr; 09 Smoothing kinks and continuity breaks in monitors</a><span></span></div>
+</main>
+<footer>
+  <p>coh-thread &middot; a foundation for high-consequence operations &middot;
+     <a href="mailto:realsaimohanty@gmail.com">realsaimohanty@gmail.com</a> &middot; <a href="../code/index.html">read the source</a></p>
+  <p>Research-grade, uncertified code. Use it as one layer of protection, never the only one.</p>
+</footer>
+
+</body>
+</html>

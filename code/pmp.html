@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>pmp.py | coh-thread</title>
+
+<script>document.documentElement.className += " js";</script>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=IBM+Plex+Sans:wght@400;500&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../style.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<nav class="top">
+  <a class="mark" href="../index.html">coh-thread</a>
+  <span class="links">
+    <a href="../library.html">Library</a>
+    <a href="../notes/index.html">Notes</a>
+    <a href="../code/index.html">Code</a>
+    <a href="../overview.html">Overview</a>
+    <a href="../index.html#contact">Contact</a>
+    
+  </span>
+</nav>
+<main id="main">
+<h1>pmp.py</h1><p class="lede">Pontryagin minimum principle by indirect shooting (Euclidean state space).</p><pre><code>&quot;&quot;&quot;Pontryagin minimum principle by indirect shooting (Euclidean state space).
+
+Problem:  min  phi(x(T)) + int_0^T L(x, u) dt     s.t.  x&#x27; = f(x, u),  x(0) = x0
+
+Hamiltonian (minimum form, normal extremal):  H(x, lam, u) = L(x, u) + lam . f(x, u)
+Necessary conditions:
+    x&#x27;   =  dH/dlam = f
+    lam&#x27; = -dH/dx                    (u held fixed)
+    u*   =  argmin_u H(x, lam, u)    (supplied by the caller as u_star)
+    fixed end component:  x_i(T) = x_T_i
+    free end component:   lam_i(T) = d phi / d x_i (x(T))
+    free final time:      H(T) = 0           (and H is constant on [0, T])
+
+Shooting unknowns are lam(0) and, for free final time, T. The extremal is
+integrated on the scaled time tau = t / T in [0, 1] so T can be an unknown.
+Abnormal extremals (zero multiplier on L) are not searched for.
+
+Kinks in u_star (saturation, bang-bang) make the shooting map non-smooth. Use
+`smooth.barrier_cost` and `smooth.barrier_control` to get a smooth u_star that is
+the exact minimiser of a modified cost, then lower the smoothing width by
+continuation (see `PMPShooting.continuation`).
+&quot;&quot;&quot;
+from dataclasses import dataclass, field
+
+import numpy as np
+from scipy.integrate import solve_ivp
+from scipy.optimize import root
+
+
+@dataclass
+<span id="def-Extremal"></span>class Extremal:
+    t: np.ndarray
+    x: np.ndarray            # (N, n)
+    lam: np.ndarray          # (N, n)
+    u: np.ndarray            # (N, m)
+    H: np.ndarray            # Hamiltonian along the extremal
+    cost: float              # int L dt (without phi)
+    T: float
+    lam0: np.ndarray
+    residual: float
+    dense: object = field(repr=False, default=None)
+
+
+<span id="def-PMPShooting"></span>class PMPShooting:
+    def __init__(self, f, L, u_star, n_state, H_x=None, fd_step=1e-6):
+        &quot;&quot;&quot;f(x, u) -&gt; x&#x27;, L(x, u) -&gt; float, u_star(x, lam) -&gt; u.
+        H_x(x, lam, u) -&gt; dH/dx is optional; without it a central difference is used.&quot;&quot;&quot;
+        self.f, self.L, self.u_star, self.n = f, L, u_star, n_state
+        self._H_x, self._h = H_x, fd_step
+
+    def hamiltonian(self, x, lam, u):
+        return float(self.L(x, u) + lam @ np.asarray(self.f(x, u), dtype=float))
+
+    def _dH_dx(self, x, lam, u):
+        if self._H_x is not None:
+            return np.asarray(self._H_x(x, lam, u), dtype=float)
+        g = np.empty(self.n)
+        for i in range(self.n):
+            d = np.zeros(self.n)
+            d[i] = self._h
+            g[i] = (self.hamiltonian(x + d, lam, u) - self.hamiltonian(x - d, lam, u)) / (2 * self._h)
+        return g
+
+    def _rhs(self, y):
+        x, lam = y[:self.n], y[self.n:2 * self.n]
+        u = np.atleast_1d(self.u_star(x, lam))
+        return np.concatenate([np.asarray(self.f(x, u), dtype=float),
+                               -self._dH_dx(x, lam, u),
+                               [self.L(x, u)]])
+
+    def _integrate(self, x0, lam0, T, dense=False):
+        y0 = np.concatenate([x0, lam0, [0.0]])
+        return solve_ivp(lambda tau, y: T * self._rhs(y), (0.0, 1.0), y0, method=&quot;DOP853&quot;,
+                         rtol=1e-9, atol=1e-11, dense_output=dense)
+
+    def solve(self, x0, T, lam0, x_T=None, phi_grad=None, free_time=False,
+              n_out=201, tol=1e-9):
+        &quot;&quot;&quot;Find lam(0) (and T if free_time) satisfying the terminal conditions.
+
+        x_T: terminal state; NaN entries are free (then lam_i(T) = dphi/dx_i, zero
+        without phi_grad). Default is all free. T is the initial guess when free_time.&quot;&quot;&quot;
+        x0 = np.asarray(x0, dtype=float)
+        x_T = np.full(self.n, np.nan) if x_T is None else np.asarray(x_T, dtype=float)
+        fixed = ~np.isnan(x_T)
+
+        def terminal_residual(sol, Tc):
+            xT, lamT = sol.y[:self.n, -1], sol.y[self.n:2 * self.n, -1]
+            grad = np.zeros(self.n) if phi_grad is None else np.asarray(phi_grad(xT), dtype=float)
+            r = np.where(fixed, xT - np.where(fixed, x_T, 0.0), lamT - grad)
+            if free_time:
+                uT = np.atleast_1d(self.u_star(xT, lamT))
+                r = np.append(r, self.hamiltonian(xT, lamT, uT))
+            return r
+
+        def unpack(z):
+            return z[:self.n], (float(np.exp(z[self.n])) if free_time else float(T))
+
+        def residual(z):
+            lam_c, Tc = unpack(z)
+            sol = self._integrate(x0, lam_c, Tc)
+            if not sol.success or not np.all(np.isfinite(sol.y)):
+                return np.full(self.n + int(free_time), 1e6)
+            return terminal_residual(sol, Tc)
+
+        z0 = np.asarray(lam0, dtype=float)
+        if free_time:
+            z0 = np.append(z0, np.log(T))
+        res = root(residual, z0, method=&quot;hybr&quot;, tol=tol)
+        r_norm = float(np.linalg.norm(residual(res.x)))
+        if r_norm &gt; 1e-6:
+            raise RuntimeError(f&quot;shooting did not converge (residual {r_norm:.2e}): {res.message}&quot;)
+        lam_s, T_s = unpack(res.x)
+        return self._extremal(x0, lam_s, T_s, n_out, r_norm)
+
+    def continuation(self, make_solver, params, x0, T, lam0, **kw):
+        &quot;&quot;&quot;Solve a sequence of problems (e.g. decreasing smoothing width), warm-starting
+        each from the previous costate. make_solver(p) returns a PMPShooting.
+        Returns the list of extremals, one per parameter.&quot;&quot;&quot;
+        out, lam_guess, T_guess = [], np.asarray(lam0, dtype=float), T
+        for p in params:
+            ext = make_solver(p).solve(x0, T_guess, lam_guess, **kw)
+            out.append(ext)
+            lam_guess = ext.lam0
+            if kw.get(&quot;free_time&quot;):
+                T_guess = ext.T
+        return out
+
+    def _extremal(self, x0, lam0, T, n_out, r_norm):
+        sol = self._integrate(x0, lam0, T, dense=True)
+        tau = np.linspace(0.0, 1.0, n_out)
+        y = sol.sol(tau)
+        x, lam = y[:self.n].T, y[self.n:2 * self.n].T
+        u = np.array([np.atleast_1d(self.u_star(xi, li)) for xi, li in zip(x, lam)])
+        H = np.array([self.hamiltonian(xi, li, ui) for xi, li, ui in zip(x, lam, u)])
+        return Extremal(t=tau * T, x=x, lam=lam, u=u, H=H, cost=float(y[-1, -1]), T=T,
+                        lam0=np.asarray(lam0), residual=r_norm, dense=sol.sol)
+</code></pre>
+</main>
+<footer>
+  <p>coh-thread &middot; a foundation for high-consequence operations &middot;
+     <a href="mailto:realsaimohanty@gmail.com">realsaimohanty@gmail.com</a> &middot; <a href="../code/index.html">read the source</a></p>
+  <p>Research-grade, uncertified code. Use it as one layer of protection, never the only one.</p>
+</footer>
+
+</body>
+</html>

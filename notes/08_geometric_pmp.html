@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>08 Geometric PMP on manifolds and Lie groups | coh-thread</title>
+
+<script>document.documentElement.className += " js";</script>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=IBM+Plex+Sans:wght@400;500&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../style.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<nav class="top">
+  <a class="mark" href="../index.html">coh-thread</a>
+  <span class="links">
+    <a href="../library.html">Library</a>
+    <a href="../notes/index.html">Notes</a>
+    <a href="../code/index.html">Code</a>
+    <a href="../overview.html">Overview</a>
+    <a href="../index.html#contact">Contact</a>
+    
+  </span>
+</nav>
+<main id="main">
+<h1>08 Geometric PMP on manifolds and Lie groups</h1>
+<p><strong>Status.</strong> Implemented and tested: rigid-body attitude on SO(3) x R^3 in
+<code>geometric_pmp.py</code>. Sections marked <em>sketch</em> are not implemented. Claims marked
+<em>(literature)</em> are recalled from memory; check the reference before citing.</p>
+<h2>1. Coordinate-free statement</h2>
+<p>M a smooth manifold, <code>x' = f(x,u)</code>. Lift to the cotangent bundle: for <code>xi = (x, lam)</code> in
+<code>T*M</code> set <code>H_u(xi) = &lt;lam, f(x,u)&gt; + lam0 L(x,u)</code>, with the canonical symplectic form.
+An extremal is a curve <code>xi(t)</code> with <code>xi' = X_{H_u(t)}(xi)</code> (Hamiltonian vector field),
+<code>H_u(t)(xi(t)) = min_v H_v(xi(t))</code>, and <code>lam(T)</code> annihilating the tangent space of the
+terminal set (plus <code>lam0 d phi</code>). No charts, no Euler angles, no unit-norm constraint,
+no angle wrapping. <em>(literature: Agrachev and Sachkov, Control Theory from the Geometric
+Viewpoint.)</em></p>
+<h2>2. Lie group, left-invariant problem</h2>
+<p>Trivialise <code>T*G = G x g*</code>, <code>(g, mu)</code>. For <code>g' = g xi(u)</code> and cost <code>L(u)</code>:</p>
+<pre><code>H(g, mu, u) = &lt;mu, xi(u)&gt; + L(u)          does not depend on g
+mu' = ad*_{xi*} mu        xi* = dH/dmu    Lie-Poisson equation on g*
+g'  = g xi*                               reconstruction on G
+</code></pre>
+<p>H and the Casimirs (for so(3): <code>|mu|^2</code>) are conserved; the flow stays on a coadjoint
+orbit. For so(3), <code>ad*_xi mu = mu x xi</code>, which is Euler's equation <code>Pi' = Pi x W</code>.
+First-order example: <code>H = |u|^2/2 + mu . u</code> gives <code>u* = -mu</code>, <code>mu' = 0</code>, so <code>xi</code> is
+constant and <code>g = g0 exp(t xi)</code>: geodesics are one-parameter subgroups.</p>
+<h2>3. The implemented case: attitude with torque input</h2>
+<p>State <code>(R, W)</code>, <code>J W' = (J W) x W + u</code>, cost <code>(r/2)|u|^2</code> or a smooth torque bound.
+Costates <code>(Pi, p)</code>: <code>Pi</code> for R (in so(3)*), <code>p</code> for W. After reducing by the left SO(3)
+action the closed 9-dimensional system (derived by hand, tested numerically) is</p>
+<pre><code>W'  = J^-1 ((J W) x W + u*)        u* = -J^-1 p / r
+Pi' = Pi x W                       Lie-Poisson part
+p'  = -Pi + (J W) x g - J (W x g)  g = J^-1 p, canonical part
+</code></pre>
+<p>R drops out, so shooting works on <code>(W, Pi, p)</code> and R is rebuilt afterwards. For
+<code>J = j I</code> the cross terms cancel: <code>p' = -Pi</code>, hence <code>W''' = W'' x W</code>, i.e. the
+Riemannian cubic equation <code>v''' + [v, v''] = 0</code> of the bi-invariant metric.
+<em>(literature: Noakes, Heinzinger, Paden 1989; Crouch and Silva Leite 1995.)</em> I checked
+by hand that the covariant derivation and this one agree.</p>
+<h2>4. Why the tests look the way they do</h2>
+<p>Constant H and met boundary conditions do <strong>not</strong> validate <code>Pi' = Pi x W</code>: flipping its
+sign still gives a constant H and a solution that hits the target. The tests therefore
+add an independent first-order check: perturb the optimal torque with 18 smooth modes,
+differentiate cost and terminal error by finite differences, and require the cost gradient
+to lie in the span of the terminal-error gradients (the KKT condition).
+- correct extremal: relative residual about 4e-10
+- feasible cubic-in-time baseline (cost 19% higher): 0.37
+- extremal with the wrong sign of <code>Pi'</code>: 0.42</p>
+<p>Other checks: <code>W' = dH/dp</code> and <code>p' = -dH/dW</code> by finite differences, Casimir
+conservation, the cubic identity for spherical J, left-invariance (rotate both
+endpoints by Q, same cost and body rates), the small-angle double-integrator
+closed form, and fourth-order convergence of the Magnus step.</p>
+<h2>5. Reconstruction and discretisation</h2>
+<p>Fourth-order Magnus: <code>R_{k+1} = R_k exp(h/2 (W1 + W2) + (sqrt3 h^2/12) W1 x W2)</code> with
+Gauss points <code>W1, W2</code>. Stays on SO(3) to machine precision. Alternatives: RKMK,
+Crouch-Grossman. <em>Sketch:</em> a variational integrator on T<em>G gives discrete extremals that
+keep the symplectic structure; compare with the continuous solution. </em>(literature: Bloch,
+Hussein, Leok, Sanyal 2009, geometric structure-preserving optimal control of a rigid body.)*</p>
+<h2>6. SE(3) <em>(sketch, hand-derived from ad</em>, not coded or tested)*</h2>
+<p>For <code>xi = (W, v)</code> and <code>mu = (Pi, P)</code> in se(3)*:</p>
+<pre><code>Pi' = Pi x W + P x v          P' = P x W          Casimirs: |P|^2, Pi . P
+</code></pre>
+<p>Kinematic minimum-effort problems on SE(3) reduce to these. The quadrotor with thrust
+depends on R through <code>R e3</code>, so it is not left-invariant; reduce by the stabiliser
+(translations and yaw) or use differential flatness (note 10).</p>
+<h2>7. Sub-Riemannian and nonholonomic problems <em>(sketch, literature)</em></h2>
+<p>Distribution D, <code>H = |lam|_D^2 / 2</code>. Normal extremals project to geodesics; abnormal
+extremals exist and may be minimisers (Montgomery, A Tour of Subriemannian Geometries).
+Curvature of the connection defining D is what makes motion by cycling controls possible
+(note 10).</p><div class="pager"><a href="07_pontryagin_outline.html">&larr; 07 Pontryagin minimum principle: rough outline</a><a href="09_smoothing_kinks_and_monitors.html">09 Smoothing kinks and continuity breaks in monitors &rarr;</a></div>
+</main>
+<footer>
+  <p>coh-thread &middot; a foundation for high-consequence operations &middot;
+     <a href="mailto:realsaimohanty@gmail.com">realsaimohanty@gmail.com</a> &middot; <a href="../code/index.html">read the source</a></p>
+  <p>Research-grade, uncertified code. Use it as one layer of protection, never the only one.</p>
+</footer>
+
+</body>
+</html>

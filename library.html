@@ -1,0 +1,921 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Library | coh-thread</title>
+<meta name="description" content="34 control, estimation and monitoring functions for high-consequence operations, each with what it does, why it matters and where it stops.">
+<script>document.documentElement.className += " js";</script>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=IBM+Plex+Sans:wght@400;500&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="style.css">
+</head>
+<body class="wide">
+<a class="skip" href="#main">Skip to content</a>
+<nav class="top">
+  <a class="mark" href="index.html">coh-thread</a>
+  <span class="links">
+    <a href="library.html">Library</a>
+    <a href="notes/index.html">Notes</a>
+    <a href="code/index.html">Code</a>
+    <a href="overview.html">Overview</a>
+    <a href="index.html#contact">Contact</a>
+    
+  </span>
+</nav>
+<main id="main">
+<header class="lib-head">
+  <p class="eyebrow">The suite</p>
+  <h1>The library</h1>
+  <p class="lede">34 public functions and classes in 8 modules, in one importable Python package.
+  Hover, focus or tap a name to see what it does, why it matters when failure is costly, and where it stops.</p>
+</header>
+
+<div class="how">
+  <h2>How to read this page</h2>
+  <dl class="legend">
+    <div><dt>What it does</dt><dd>The exact behaviour, as the code implements it.</dd></div>
+    <div><dt>Why it matters</dt><dd>The reason it earns a place in high-consequence work.</dd></div>
+    <div><dt class="warn">Where it stops</dt><dd class="warn">What it does not guarantee. We write these as carefully as the guarantees.</dd></div>
+  </dl>
+  <p>Press <kbd>Esc</kbd> to dismiss a panel. Click or tap a name to keep its panel open.</p>
+</div>
+
+<div class="how">
+  <h2>Use it</h2>
+  <p>The package is <code>control</code>. It needs Python 3, NumPy and SciPy. The full source of every module is on the
+  <a href="code/index.html">Code page</a>, and the examples under each group run as written once the package is on your Python path.</p>
+  <p>A one-file download is not on this site yet. To get the package as files, write to <strong>realsaimohanty@gmail.com</strong>.</p>
+</div>
+
+<nav aria-label="Jump to a group"><ul class="roles"><li><a href="#mod-kalman">Estimate<span>kalman</span></a></li><li><a href="#mod-lyapunov">Certify<span>lyapunov</span></a></li><li><a href="#mod-so3">Orient<span>so3</span></a></li><li><a href="#mod-geometric">Command<span>geometric</span></a></li><li><a href="#mod-smooth">Bound<span>smooth</span></a></li><li><a href="#mod-continuity">Watch<span>continuity</span></a></li><li><a href="#mod-pmp">Plan<span>pmp</span></a></li><li><a href="#mod-geometric_pmp">Plan<span>geometric_pmp</span></a></li></ul></nav>
+
+<section class="group" id="mod-kalman" aria-labelledby="h-kalman">
+  <p class="role">Estimate</p>
+  <h2 id="h-kalman">Know the state you cannot measure directly</h2>
+  <p class="mod"><code>control.kalman</code> &middot; <a href="code/kalman.html">read the module</a></p>
+  <p class="group-intro">Estimators that turn noisy sensor readings into a state estimate and its uncertainty. Every <code>update</code> returns the innovation and its covariance, so you can compute the normalised innovation squared (NIS) and notice when the filter stops agreeing with the data.</p>
+  <ul class="fns">
+<li class="fn" id="fn-KalmanFilter">
+  <div class="fn-row">
+    <div class="fn-line">
+      <button type="button" class="fn-name" aria-expanded="false" aria-controls="tip-KalmanFilter">KalmanFilter</button><code class="fn-args">(F, H, Q, R, x0, P0, B=None)</code>
+      <span class="fn-kind">class</span>
+    </div>
+    <p class="fn-brief">Linear estimator: the best guess of the state, and how unsure it is.</p>
+  </div>
+  <div class="tip" id="tip-KalmanFilter">
+    <dl>
+      <dt>What it does</dt><dd>Tracks a state mean <code>x</code> and covariance <code>P</code> for a linear model. <code>predict</code> moves them forward one step; <code>update</code> folds in a measurement and returns the innovation <code>y</code> and its covariance <code>S</code>.</dd>
+      <dt>Why it matters</dt><dd>Every later decision trusts the estimate, so its stated uncertainty has to be honest. The covariance update uses the Joseph form and is re-symmetrised, which resists the rounding errors that can leave a covariance asymmetric or not positive semi-definite.</dd>
+      <dt class="warn">Where it stops</dt><dd class="warn">It does not raise an alarm when it is wrong. Compute NIS from the returned <code>y</code> and <code>S</code> and act when it leaves its expected range. Assumes the model and the noise levels are right.</dd>
+    </dl>
+    <div class="tip-foot">
+      <a class="tip-src" href="code/kalman.html#def-KalmanFilter">Read the source</a>
+      <button type="button" class="tip-close">Close</button>
+    </div>
+  </div>
+</li>
+<li class="fn" id="fn-ExtendedKalmanFilter">
+  <div class="fn-row">
+    <div class="fn-line">
+      <button type="button" class="fn-name" aria-expanded="false" aria-controls="tip-ExtendedKalmanFilter">ExtendedKalmanFilter</button><code class="fn-args">(f, F_jac, h, H_jac, Q, R, x0, P0)</code>
+      <span class="fn-kind">class</span>
+    </div>
+    <p class="fn-brief">The same idea for nonlinear systems, linearised at every step.</p>
+  </div>
+  <div class="tip" id="tip-ExtendedKalmanFilter">
+    <dl>
+      <dt>What it does</dt><dd>Predicts with your function <code>f</code> and updates with your function <code>h</code>, using the Jacobians <code>F_jac</code> and <code>H_jac</code> you supply to carry the covariance.</dd>
+      <dt>Why it matters</dt><dd>Real plants are nonlinear. Because the Jacobians are explicit inputs, they can be reviewed and tested on their own instead of hiding inside a solver.</dd>
+      <dt class="warn">Where it stops</dt><dd class="warn">Linearisation error is not tracked. With strong nonlinearity or a poor starting estimate it can become overconfident, and a wrong Jacobian gives wrong answers without any error. Check your Jacobians against finite differences.</dd>
+    </dl>
+    <div class="tip-foot">
+      <a class="tip-src" href="code/kalman.html#def-ExtendedKalmanFilter">Read the source</a>
+      <button type="button" class="tip-close">Close</button>
+    </div>
+  </div>
+</li>
+<li class="fn" id="fn-UnscentedKalmanFilter">
+  <div class="fn-row">
+    <div class="fn-line">
+      <button type="button" class="fn-name" aria-expanded="false" aria-controls="tip-UnscentedKalmanFilter">UnscentedKalmanFilter</button><code class="fn-args">(f, h, Q, R, x0, P0, alpha=0.001, beta=2.0, kappa=0.0)</code>
+      <span class="fn-kind">class</span>
+    </div>
+    <p class="fn-brief">A nonlinear estimator that needs no Jacobians.</p>
+  </div>
+  <div class="tip" id="tip-UnscentedKalmanFilter">
+    <dl>
+      <dt>What it does</dt><dd>Pushes a small set of sigma points through <code>f</code> and <code>h</code> and rebuilds the mean and covariance from them (scaled unscented transform, additive noise). <code>alpha</code>, <code>beta</code> and <code>kappa</code> set the spread.</dd>
+      <dt>Why it matters</dt><dd>Removes a class of mistakes: there is no hand-derived Jacobian to get wrong. A better fit when the nonlinearity is strong or the derivatives are tedious.</dd>
+      <dt class="warn">Where it stops</dt><dd class="warn">Still a Gaussian approximation, with additive noise only. The covariance must stay positive definite: if it does not, the Cholesky step raises an error, which is deliberate.</dd>
+    </dl>
+    <div class="tip-foot">
+      <a class="tip-src" href="code/kalman.html#def-UnscentedKalmanFilter">Read the source</a>
+      <button type="button" class="tip-close">Close</button>
+    </div>
+  </div>
+</li>
+  </ul>
+  <details class="try"><summary>Try it</summary><pre><code>import numpy as np
+from control import KalmanFilter
+
+# Position and velocity, with position measured once per step.
+dt = 0.1
+kf = KalmanFilter(F=[[1, dt], [0, 1]], H=[[1, 0]], Q=0.01 * np.eye(2),
+                  R=[[0.25]], x0=[0, 0], P0=np.eye(2))
+kf.predict()
+y, S = kf.update([0.3])
+nis = float(y @ np.linalg.solve(S, y))   # normalised innovation squared
+print(round(nis, 3), nis &lt; 6.63)         # 6.63 = 99% chi-square gate, 1 degree of freedom</code></pre><p class="out">Prints:</p><pre class="output"><code>0.071 True</code></pre></details>
+</section><section class="group" id="mod-lyapunov" aria-labelledby="h-lyapunov">
+  <p class="role">Certify</p>
+  <h2 id="h-lyapunov">Show the system settles, or find where it does not</h2>
+  <p class="mod"><code>control.lyapunov</code> &middot; <a href="code/lyapunov.html">read the module</a></p>
+  <p class="group-intro">Tools for the question &quot;does it settle?&quot; A Lyapunov function is a measure of distance from the safe state that must shrink along every trajectory. If you can write one down and check it, you have a reason to expect recovery, not just a plot where it happened to recover.</p>
+  <ul class="fns">
+<li class="fn" id="fn-is_hurwitz">
+  <div class="fn-row">
+    <div class="fn-line">
+      <button type="button" class="fn-name" aria-expanded="false" aria-controls="tip-is_hurwitz">is_hurwitz</button><code class="fn-args">(A)</code>
+      <span class="fn-kind">function</span>
+    </div>
+    <p class="fn-brief">Yes or no: do small disturbances to a linear system die out?</p>
+  </div>
+  <div class="tip" id="tip-is_hurwitz">
+    <dl>
+      <dt>What it does</dt><dd>True when every eigenvalue of <code>A</code> has a strictly negative real part.</dd>
+      <dt>Why it matters</dt><dd>The cheapest first test of a linearised system, and the precondition for the Lyapunov equation below.</dd>
+      <dt class="warn">Where it stops</dt><dd class="warn">A bare yes or no with no margin: an eigenvalue at -1e-12 passes. It says nothing about large disturbances, or about a nonlinear system far from the point you linearised at.</dd>
+    </dl>
+    <div class="tip-foot">
+      <a class="tip-src" href="code/lyapunov.html#def-is_hurwitz">Read the source</a>
+      <button type="button" class="tip-close">Close</button>
+    </div>
+  </div>
+</li>
+<li class="fn" id="fn-lyapunov_equation">
+  <div class="fn-row">
+    <div class="fn-line">
+      <button type="button" class="fn-name" aria-expanded="false" aria-controls="tip-lyapunov_equation">lyapunov_equation</button><code class="fn-args">(A, Q)</code>
+      <span class="fn-kind">function</span>
+    </div>
+    <p class="fn-brief">Builds a stability certificate for a linear system.</p>
+  </div>
+  <div class="tip" id="tip-lyapunov_equation">
+    <dl>
+      <dt>What it does</dt><dd>Solves <code>AᵀP + PA = -Q</code>. For Hurwitz <code>A</code> and <code>Q &gt; 0</code>, <code>V(x) = xᵀPx</code> is a Lyapunov function for <code>x&#x27; = Ax</code>. Raises <code>ValueError</code> if <code>A</code> is not Hurwitz.</dd>
+      <dt>Why it matters</dt><dd>Turns &quot;it looks stable&quot; into a function you can check. Refusing to answer for an unstable <code>A</code> is deliberate: no false certificate.</dd>
+      <dt class="warn">Where it stops</dt><dd class="warn">A certificate for the linear model only. <code>Q</code> is yours to choose and is not checked to be positive definite. How far the certificate reaches on the real nonlinear plant is a separate question.</dd>
+    </dl>
+    <div class="tip-foot">
+      <a class="tip-src" href="code/lyapunov.html#def-lyapunov_equation">Read the source</a>
+      <button type="button" class="tip-close">Close</button>
+    </div>
+  </div>
+</li>
+<li class="fn" id="fn-lqr">
+  <div class="fn-row">
+    <div class="fn-line">
+      <button type="button" class="fn-name" aria-expanded="false" aria-controls="tip-lqr">lqr</button><code class="fn-args">(A, B, Q, R)</code>
+      <span class="fn-kind">function</span>
+    </div>
+    <p class="fn-brief">A stabilising feedback gain, with its certificate attached.</p>
+  </div>
+  <div class="tip" id="tip-lqr">
+    <dl>
+      <dt>What it does</dt><dd>Continuous-time LQR. Returns the gain <code>K</code> (control <code>u = -Kx</code>) and the Riccati solution <code>P</code>, where <code>V(x) = xᵀPx</code> is a Lyapunov function of the closed loop.</dd>
+      <dt>Why it matters</dt><dd><code>Q</code> and <code>R</code> state in plain numbers what you penalise: state error against actuator effort. You get a gain you can inspect, and a Lyapunov function with it.</dd>
+      <dt class="warn">Where it stops</dt><dd class="warn">Linear model, no actuator limits. Saturation can break the guarantee, so re-check with the limits in the loop (see <code>tanh_sat</code>). SciPy raises an error if it cannot solve the Riccati equation, for example when the system is not stabilisable.</dd>
+    </dl>
+    <div class="tip-foot">
+      <a class="tip-src" href="code/lyapunov.html#def-lqr">Read the source</a>
+      <button type="button" class="tip-close">Close</button>
+    </div>
+  </div>
+</li>
+<li class="fn" id="fn-check_vdot_negative">
+  <div class="fn-row">
+    <div class="fn-line">
+      <button type="button" class="fn-name" aria-expanded="false" aria-controls="tip-check_vdot_negative">check_vdot_negative</button><code class="fn-args">(f, V_grad, samples, tol=1e-09)</code>
+      <span class="fn-kind">function</span>
+    </div>
+    <p class="fn-brief">Try to break a stability claim by sampling.</p>
+  </div>
+  <div class="tip" id="tip-check_vdot_negative">
+    <dl>
+      <dt>What it does</dt><dd>Evaluates <code>V̇ = ∇V · f</code> at each sample point (skipping the origin) and returns <code>(ok, worst_value, worst_point)</code>.</dd>
+      <dt>Why it matters</dt><dd>A cheap, honest way to attack a Lyapunov argument. If the claim is wrong this tends to find where, and it names the worst point so you can look at it.</dd>
+      <dt class="warn">Where it stops</dt><dd class="warn">Falsification, not proof. Passing means no violation was found at the points you sampled, and nothing more. Sample near the edge of the region you care about.</dd>
+    </dl>
+    <div class="tip-foot">
+      <a class="tip-src" href="code/lyapunov.html#def-check_vdot_negative">Read the source</a>
+      <button type="button" class="tip-close">Close</button>
+    </div>
+  </div>
+</li>
+<li class="fn" id="fn-PendulumSwingUp">
+  <div class="fn-row">
+    <div class="fn-line">
+      <button type="button" class="fn-name" aria-expanded="false" aria-controls="tip-PendulumSwingUp">PendulumSwingUp</button><code class="fn-args">(m=1.0, l=1.0, g=9.81, k=2.0, u_max=3.0, catch_angle=0.35, blend_width=0.0)</code>
+      <span class="fn-kind">class</span>
+    </div>
+    <p class="fn-brief">A worked hybrid controller: pump energy, then catch with LQR.</p>
+  </div>
+  <div class="tip" id="tip-PendulumSwingUp">
+    <dl>
+      <dt>What it does</dt><dd>A torque-limited pendulum. An energy-pumping law swings it up, then hands over to LQR near upright. With <code>blend_width = 0</code> the hand-over is a hard switch and the torque limit is a clip; with <code>blend_width &gt; 0</code> both become smooth. <code>simulate</code> runs it with RK4.</dd>
+      <dt>Why it matters</dt><dd>Shows the two classic sources of jumps in a controller, the mode switch and the clip, next to their smooth fix, on a system small enough to read and test.</dd>
+      <dt class="warn">Where it stops</dt><dd class="warn">A teaching and benchmark system. It makes no claim to model any real hardware.</dd>
+    </dl>
+    <div class="tip-foot">
+      <a class="tip-src" href="code/lyapunov.html#def-PendulumSwingUp">Read the source</a>
+      <button type="button" class="tip-close">Close</button>
+    </div>
+  </div>
+</li>
+  </ul>
+  <details class="try"><summary>Try it</summary><pre><code>import numpy as np
+from control import is_hurwitz, lyapunov_equation, check_vdot_negative
+
+A = np.array([[0.0, 1.0], [-2.0, -3.0]])
+print(is_hurwitz(A))
+P = lyapunov_equation(A, np.eye(2))                    # V(x) = x&#x27; P x
+samples = np.random.default_rng(0).normal(size=(500, 2))
+ok, worst, at = check_vdot_negative(lambda x: A @ x, lambda x: 2 * P @ x, samples)
+print(ok, worst &lt; 0)   # &quot;no violation found in these samples&quot;, not a proof</code></pre><p class="out">Prints:</p><pre class="output"><code>True
+True True</code></pre></details>
+</section><section class="group" id="mod-so3" aria-labelledby="h-so3">
+  <p class="role">Orient</p>
+  <h2 id="h-so3">Rotations without the usual traps</h2>
+  <p class="mod"><code>control.so3</code> &middot; <a href="code/so3.html">read the module</a></p>
+  <p class="group-intro">Orientation as 3×3 rotation matrices: no gimbal lock as with Euler angles, no double cover as with quaternions. These are the shared building blocks of the geometric controllers.</p>
+  <ul class="fns">
+<li class="fn" id="fn-hat">
+  <div class="fn-row">
+    <div class="fn-line">
+      <button type="button" class="fn-name" aria-expanded="false" aria-controls="tip-hat">hat</button><code class="fn-args">(w)</code>
+      <span class="fn-kind">function</span>
+    </div>
+    <p class="fn-brief">Turns a 3-vector into the matrix that does a cross product.</p>
+  </div>
+  <div class="tip" id="tip-hat">
+    <dl>
+      <dt>What it does</dt><dd>Maps <code>w</code> to the skew-symmetric matrix with <code>hat(w) @ v == cross(w, v)</code>.</dd>
+      <dt>Why it matters</dt><dd>The basic translation between angular velocities and rotation matrices. The rotation code in the suite builds on it.</dd>
+      
+    </dl>
+    <div class="tip-foot">
+      <a class="tip-src" href="code/so3.html#def-hat">Read the source</a>
+      <button type="button" class="tip-close">Close</button>
+    </div>
+  </div>
+</li>
+<li class="fn" id="fn-vee">
+  <div class="fn-row">
+    <div class="fn-line">
+      <button type="button" class="fn-name" aria-expanded="false" aria-controls="tip-vee">vee</button><code class="fn-args">(W)</code>
+      <span class="fn-kind">function</span>
+    </div>
+    <p class="fn-brief">The inverse of <code>hat</code>.</p>
+  </div>
+  <div class="tip" id="tip-vee">
+    <dl>
+      <dt>What it does</dt><dd>Reads the 3-vector back out of a skew-symmetric matrix.</dd>
+      <dt>Why it matters</dt><dd>Lets an error measured as a matrix, such as <code>RdᵀR - RᵀRd</code>, become a vector that can drive a torque command.</dd>
+      <dt class="warn">Where it stops</dt><dd class="warn">It reads the entries without checking that the matrix really is skew-symmetric.</dd>
+    </dl>
+    <div class="tip-foot">
+      <a class="tip-src" href="code/so3.html#def-vee">Read the source</a>
+      <button type="button" class="tip-close">Close</button>
+    </div>
+  </div>
+</li>
+<li class="fn" id="fn-exp_so3">
+  <div class="fn-row">
+    <div class="fn-line">
+      <button type="button" class="fn-name" aria-expanded="false" aria-controls="tip-exp_so3">exp_so3</button><code class="fn-args">(w)</code>
+      <span class="fn-kind">function</span>
+    </div>
+    <p class="fn-brief">Rotation vector in, valid rotation matrix out.</p>
+  </div>
+  <div class="tip" id="tip-exp_so3">
+    <dl>
+      <dt>What it does</dt><dd>Rodrigues&#x27; formula: the exponential of <code>hat(w)</code>, with a series for tiny angles so it never divides by zero.</dd>
+      <dt>Why it matters</dt><dd>Advancing an orientation by multiplying exponentials keeps it a rotation. Integrating matrix entries directly lets it drift off the rotation group.</dd>
+      <dt class="warn">Where it stops</dt><dd class="warn">Rounding still accumulates over millions of steps. In long runs, check <code>control.so3.is_rotation</code> now and then.</dd>
+    </dl>
+    <div class="tip-foot">
+      <a class="tip-src" href="code/so3.html#def-exp_so3">Read the source</a>
+      <button type="button" class="tip-close">Close</button>
+    </div>
+  </div>
+</li>
+<li class="fn" id="fn-log_so3">
+  <div class="fn-row">
+    <div class="fn-line">
+      <button type="button" class="fn-name" aria-expanded="false" aria-controls="tip-log_so3">log_so3</button><code class="fn-args">(R)</code>
+      <span class="fn-kind">function</span>
+    </div>
+    <p class="fn-brief">Rotation matrix in, &quot;how far and about which axis&quot; out.</p>
+  </div>
+  <div class="tip" id="tip-log_so3">
+    <dl>
+      <dt>What it does</dt><dd>Principal logarithm. Returns the rotation vector, with norm in [0, π], and handles the cases near 0 and near π where the textbook formula divides by zero.</dd>
+      <dt>Why it matters</dt><dd>A well-defined orientation-error vector, whose norm is the angle, is what attitude monitors and controllers need.</dd>
+      <dt class="warn">Where it stops</dt><dd class="warn">Assumes the input is a rotation matrix and does not check. At exactly 180° the sign of the axis is arbitrary.</dd>
+    </dl>
+    <div class="tip-foot">
+      <a class="tip-src" href="code/so3.html#def-log_so3">Read the source</a>
+      <button type="button" class="tip-close">Close</button>
+    </div>
+  </div>
+</li>
+  </ul>
+  <details class="try"><summary>Try it</summary><pre><code>import numpy as np
+from control import exp_so3, log_so3
+
+R = exp_so3([0.0, 0.0, np.pi / 2])               # 90 degrees about z
+print(round(float(np.linalg.norm(log_so3(R))), 6))   # the angle, recovered</code></pre><p class="out">Prints:</p><pre class="output"><code>1.570796</code></pre></details>
+</section><section class="group" id="mod-geometric" aria-labelledby="h-geometric">
+  <p class="role">Command</p>
+  <h2 id="h-geometric">Steer attitude and position on rotation matrices</h2>
+  <p class="mod"><code>control.geometric</code> &middot; <a href="code/geometric.html">read the module</a></p>
+  <p class="group-intro">Controllers that work directly on rotation matrices (Lee, Leok and McClamroch, CDC 2010), which avoids the singularities of Euler angles and the unwinding of quaternions.</p>
+  <ul class="fns">
+<li class="fn" id="fn-GeometricAttitudeController">
+  <div class="fn-row">
+    <div class="fn-line">
+      <button type="button" class="fn-name" aria-expanded="false" aria-controls="tip-GeometricAttitudeController">GeometricAttitudeController</button><code class="fn-args">(J, kR=8.0, kW=2.5)</code>
+      <span class="fn-kind">class</span>
+    </div>
+    <p class="fn-brief">Steers a rigid body&#x27;s orientation to a target, from almost any start.</p>
+  </div>
+  <div class="tip" id="tip-GeometricAttitudeController">
+    <dl>
+      <dt>What it does</dt><dd>Tracking controller on SO(3) for <code>J w&#x27; = M - w × Jw</code>. <code>moment</code> returns the torque from the attitude and rate errors, <code>step_dynamics</code> advances the body on the group, and <code>simulate</code> runs the closed loop. The error function <code>Ψ = ½ tr(I - RdᵀR)</code> is a Lyapunov function.</dd>
+      <dt>Why it matters</dt><dd>The loop converges from every initial attitude except a measure-zero set where the error is exactly 180°. The guarantee names its own exception, so you know what is and is not covered.</dd>
+      <dt class="warn">Where it stops</dt><dd class="warn">The returned torque is not limited, so add saturation and re-test. Assumes the inertia <code>J</code> is known. The default gains are examples; choose them for your own inertia.</dd>
+    </dl>
+    <div class="tip-foot">
+      <a class="tip-src" href="code/geometric.html#def-GeometricAttitudeController">Read the source</a>
+      <button type="button" class="tip-close">Close</button>
+    </div>
+  </div>
+</li>
+<li class="fn" id="fn-QuadrotorSE3Controller">
+  <div class="fn-row">
+    <div class="fn-line">
+      <button type="button" class="fn-name" aria-expanded="false" aria-controls="tip-QuadrotorSE3Controller">QuadrotorSE3Controller</button><code class="fn-args">(mass, J, kx=8.0, kv=4.0, kR=8.81, kW=2.54, g=9.81, thrust_eps=0.02, heading=&#x27;tilt_twist&#x27;)</code>
+      <span class="fn-kind">class</span>
+    </div>
+    <p class="fn-brief">Holds a quadrotor at a target position, or moves it slowly to one.</p>
+  </div>
+  <div class="tip" id="tip-QuadrotorSE3Controller">
+    <dl>
+      <dt>What it does</dt><dd>The outer loop turns position and velocity error into a thrust vector, which fixes the desired attitude; the inner loop is <code>GeometricAttitudeController</code>. <code>control</code> returns thrust, torque and desired attitude; <code>simulate</code> runs it.</dd>
+      <dt>Why it matters</dt><dd>The paper&#x27;s construction of the desired attitude has two singular points where the command jumps. The defaults (<code>thrust_eps</code>, <code>heading=&quot;tilt_twist&quot;</code>) keep it a valid rotation and move the singularity to downward-thrust commands, outside normal flight.</dd>
+      <dt class="warn">Where it stops</dt><dd class="warn">Omits the desired angular velocity and acceleration, so it suits slowly varying references only. Stability of the smoothed default is checked in simulation, not proven. Pass <code>thrust_eps=0, heading=&quot;projection&quot;</code> for the paper&#x27;s exact construction.</dd>
+    </dl>
+    <div class="tip-foot">
+      <a class="tip-src" href="code/geometric.html#def-QuadrotorSE3Controller">Read the source</a>
+      <button type="button" class="tip-close">Close</button>
+    </div>
+  </div>
+</li>
+  </ul>
+  <details class="try"><summary>Try it</summary><pre><code>import numpy as np
+from control import GeometricAttitudeController, exp_so3
+
+ctrl = GeometricAttitudeController(np.diag([0.02, 0.02, 0.04]))
+R0 = exp_so3([0.0, 0.0, 3.0])             # about 172 degrees away from the target
+R, W, log = ctrl.simulate(R0, np.zeros(3), np.eye(3), T=6.0)
+print(round(float(log[0, 1]), 2), float(log[-1, 1]) &lt; 1e-6)   # error Psi: start, then ~0</code></pre><p class="out">Prints:</p><pre class="output"><code>1.99 True</code></pre></details>
+</section><section class="group" id="mod-smooth" aria-labelledby="h-smooth">
+  <p class="role">Bound</p>
+  <h2 id="h-smooth">Remove the kinks, keep the limits</h2>
+  <p class="mod"><code>control.smooth</code> &middot; <a href="code/smooth.html">read the module</a></p>
+  <p class="group-intro">Every function here is C-infinity and has a width (<code>eps</code>, <code>width</code> or <code>r</code>). A smaller width follows the original more closely but makes derivatives larger and the problem stiffer. The width is a design choice, and each entry says how far the result can stray from the original.</p>
+  <ul class="fns">
+<li class="fn" id="fn-smooth_abs">
+  <div class="fn-row">
+    <div class="fn-line">
+      <button type="button" class="fn-name" aria-expanded="false" aria-controls="tip-smooth_abs">smooth_abs</button><code class="fn-args">(x, eps)</code>
+      <span class="fn-kind">function</span>
+    </div>
+    <p class="fn-brief">|x| without the corner.</p>
+  </div>
+  <div class="tip" id="tip-smooth_abs">
+    <dl>
+      <dt>What it does</dt><dd><code>√(x² + eps²) - eps</code>. Zero at 0, and <code>0 ≤ |x| - value ≤ eps</code>.</dd>
+      <dt>Why it matters</dt><dd>Solvers and gradient-based tools stumble where |x| has no slope. This is differentiable everywhere, and its distance from |x| is bounded by a number you choose.</dd>
+      <dt class="warn">Where it stops</dt><dd class="warn">The error budget <code>eps</code> is yours to set and to check against your tolerances.</dd>
+    </dl>
+    <div class="tip-foot">
+      <a class="tip-src" href="code/smooth.html#def-smooth_abs">Read the source</a>
+      <button type="button" class="tip-close">Close</button>
+    </div>
+  </div>
+</li>
+<li class="fn" id="fn-smooth_sign">
+  <div class="fn-row">
+    <div class="fn-line">
+      <button type="button" class="fn-name" aria-expanded="false" aria-controls="tip-smooth_sign">smooth_sign</button><code class="fn-args">(x, eps)</code>
+      <span class="fn-kind">function</span>
+    </div>
+    <p class="fn-brief">sign(x) without the instant flip.</p>
+  </div>
+  <div class="tip" id="tip-smooth_sign">
+    <dl>
+      <dt>What it does</dt><dd><code>x / √(x² + eps²)</code>, the derivative of <code>smooth_abs</code>. Tends to sign(x) as <code>eps → 0</code>.</dd>
+      <dt>Why it matters</dt><dd>A hard sign flips between -1 and +1 in zero time, which makes actuators chatter. This ramps across a band about <code>eps</code> wide.</dd>
+      <dt class="warn">Where it stops</dt><dd class="warn">Not ±1 inside the band. The band width trades chatter against stiffness.</dd>
+    </dl>
+    <div class="tip-foot">
+      <a class="tip-src" href="code/smooth.html#def-smooth_sign">Read the source</a>
+      <button type="button" class="tip-close">Close</button>
+    </div>
+  </div>
+</li>
+<li class="fn" id="fn-smooth_normalize">
+  <div class="fn-row">
+    <div class="fn-line">
+      <button type="button" class="fn-name" aria-expanded="false" aria-controls="tip-smooth_normalize">smooth_normalize</button><code class="fn-args">(v, eps)</code>
+      <span class="fn-kind">function</span>
+    </div>
+    <p class="fn-brief">v / |v| that stays defined at zero.</p>
+  </div>
+  <div class="tip" id="tip-smooth_normalize">
+    <dl>
+      <dt>What it does</dt><dd><code>v / √(|v|² + eps²)</code>.</dd>
+      <dt>Why it matters</dt><dd>Normalising a zero vector divides by zero at the worst moment, when the error reaches zero. This stays finite there.</dd>
+      <dt class="warn">Where it stops</dt><dd class="warn">The result is slightly shorter than a unit vector, so do not use it where exact unit length is required. The quadrotor controller uses a different fix for that reason.</dd>
+    </dl>
+    <div class="tip-foot">
+      <a class="tip-src" href="code/smooth.html#def-smooth_normalize">Read the source</a>
+      <button type="button" class="tip-close">Close</button>
+    </div>
+  </div>
+</li>
+<li class="fn" id="fn-softplus">
+  <div class="fn-row">
+    <div class="fn-line">
+      <button type="button" class="fn-name" aria-expanded="false" aria-controls="tip-softplus">softplus</button><code class="fn-args">(x, eps)</code>
+      <span class="fn-kind">function</span>
+    </div>
+    <p class="fn-brief">max(x, 0) with a smooth knee.</p>
+  </div>
+  <div class="tip" id="tip-softplus">
+    <dl>
+      <dt>What it does</dt><dd><code>eps · ln(1 + e^(x/eps))</code>. Never below <code>max(x, 0)</code> and at most <code>eps · ln 2</code> above it.</dd>
+      <dt>Why it matters</dt><dd>Lets you penalise only the part of a quantity that exceeds a limit, without a corner at the limit. It errs towards penalising more.</dd>
+      <dt class="warn">Where it stops</dt><dd class="warn">A small penalty remains even below the limit, up to about <code>0.69 · eps</code>.</dd>
+    </dl>
+    <div class="tip-foot">
+      <a class="tip-src" href="code/smooth.html#def-softplus">Read the source</a>
+      <button type="button" class="tip-close">Close</button>
+    </div>
+  </div>
+</li>
+<li class="fn" id="fn-smooth_max">
+  <div class="fn-row">
+    <div class="fn-line">
+      <button type="button" class="fn-name" aria-expanded="false" aria-controls="tip-smooth_max">smooth_max</button><code class="fn-args">(values, eps, axis=-1)</code>
+      <span class="fn-kind">function</span>
+    </div>
+    <p class="fn-brief">Largest of a list, smoothly, and never understated.</p>
+  </div>
+  <div class="tip" id="tip-smooth_max">
+    <dl>
+      <dt>What it does</dt><dd>Log-sum-exp: <code>max ≤ value ≤ max + eps · ln n</code> for <code>n</code> values.</dd>
+      <dt>Why it matters</dt><dd>For worst-case readings, such as the hottest of several sensors. It can overstate the worst case slightly, but never understates it.</dd>
+      <dt class="warn">Where it stops</dt><dd class="warn">Overstates by up to <code>eps · ln n</code>, which grows slowly with the number of values.</dd>
+    </dl>
+    <div class="tip-foot">
+      <a class="tip-src" href="code/smooth.html#def-smooth_max">Read the source</a>
+      <button type="button" class="tip-close">Close</button>
+    </div>
+  </div>
+</li>
+<li class="fn" id="fn-smooth_min">
+  <div class="fn-row">
+    <div class="fn-line">
+      <button type="button" class="fn-name" aria-expanded="false" aria-controls="tip-smooth_min">smooth_min</button><code class="fn-args">(values, eps, axis=-1)</code>
+      <span class="fn-kind">function</span>
+    </div>
+    <p class="fn-brief">Smallest of a list, smoothly, and never overstated.</p>
+  </div>
+  <div class="tip" id="tip-smooth_min">
+    <dl>
+      <dt>What it does</dt><dd><code>-smooth_max(-values)</code>, so <code>min - eps · ln n ≤ value ≤ min</code>.</dd>
+      <dt>Why it matters</dt><dd>For the smallest margin to a limit. It can understate how much margin is left, but never overstates it.</dd>
+      <dt class="warn">Where it stops</dt><dd class="warn">Understates by up to <code>eps · ln n</code>.</dd>
+    </dl>
+    <div class="tip-foot">
+      <a class="tip-src" href="code/smooth.html#def-smooth_min">Read the source</a>
+      <button type="button" class="tip-close">Close</button>
+    </div>
+  </div>
+</li>
+<li class="fn" id="fn-tanh_sat">
+  <div class="fn-row">
+    <div class="fn-line">
+      <button type="button" class="fn-name" aria-expanded="false" aria-controls="tip-tanh_sat">tanh_sat</button><code class="fn-args">(x, limit, slope=1.0)</code>
+      <span class="fn-kind">function</span>
+    </div>
+    <p class="fn-brief">A command limit that is smooth and cannot be exceeded.</p>
+  </div>
+  <div class="tip" id="tip-tanh_sat">
+    <dl>
+      <dt>What it does</dt><dd><code>limit · tanh(slope · x / limit)</code>. The output stays inside ±<code>limit</code>, with gain <code>slope</code> near zero.</dd>
+      <dt>Why it matters</dt><dd>A hard clip has corners. This has none, and the bound still holds for any input, however large.</dd>
+      <dt class="warn">Where it stops</dt><dd class="warn">Approaches the limit but never reaches it, so the last few per cent of actuator range goes unused. Saturation can change closed-loop stability, so re-test with it in the loop.</dd>
+    </dl>
+    <div class="tip-foot">
+      <a class="tip-src" href="code/smooth.html#def-tanh_sat">Read the source</a>
+      <button type="button" class="tip-close">Close</button>
+    </div>
+  </div>
+</li>
+<li class="fn" id="fn-bump_step">
+  <div class="fn-row">
+    <div class="fn-line">
+      <button type="button" class="fn-name" aria-expanded="false" aria-controls="tip-bump_step">bump_step</button><code class="fn-args">(s)</code>
+      <span class="fn-kind">function</span>
+    </div>
+    <p class="fn-brief">A perfectly smooth 0-to-1 ramp.</p>
+  </div>
+  <div class="tip" id="tip-bump_step">
+    <dl>
+      <dt>What it does</dt><dd>0 for <code>s ≤ 0</code>, 1 for <code>s ≥ 1</code>, strictly increasing between. All derivatives vanish at both ends.</dd>
+      <dt>Why it matters</dt><dd>The building block for blending two behaviours. Outside the ramp you get exactly the old behaviour, with no residue.</dd>
+      <dt class="warn">Where it stops</dt><dd class="warn">A narrow ramp is steep in the middle, which makes derivatives large.</dd>
+    </dl>
+    <div class="tip-foot">
+      <a class="tip-src" href="code/smooth.html#def-bump_step">Read the source</a>
+      <button type="button" class="tip-close">Close</button>
+    </div>
+  </div>
+</li>
+<li class="fn" id="fn-smooth_switch">
+  <div class="fn-row">
+    <div class="fn-line">
+      <button type="button" class="fn-name" aria-expanded="false" aria-controls="tip-smooth_switch">smooth_switch</button><code class="fn-args">(s, low, high, a, b)</code>
+      <span class="fn-kind">function</span>
+    </div>
+    <p class="fn-brief">Hand over smoothly from one behaviour to another.</p>
+  </div>
+  <div class="tip" id="tip-smooth_switch">
+    <dl>
+      <dt>What it does</dt><dd>Blends <code>a</code> into <code>b</code> as the monitored value <code>s</code> crosses <code>[low, high]</code>: exactly <code>a</code> below <code>low</code>, exactly <code>b</code> above <code>high</code>.</dd>
+      <dt>Why it matters</dt><dd>Mode changes are where hard switches shock actuators. For control-affine systems with a shared Lyapunov function <code>V</code>, <code>V̇</code> is affine in <code>u</code>, so if both <code>a</code> and <code>b</code> satisfy <code>V̇ ≤ -γV</code>, every blend does too.</dd>
+      <dt class="warn">Where it stops</dt><dd class="warn">That guarantee needs control-affine dynamics, a shared <code>V</code>, and the decrease condition for both laws. If any one fails, the blend carries no guarantee.</dd>
+    </dl>
+    <div class="tip-foot">
+      <a class="tip-src" href="code/smooth.html#def-smooth_switch">Read the source</a>
+      <button type="button" class="tip-close">Close</button>
+    </div>
+  </div>
+</li>
+<li class="fn" id="fn-barrier_cost">
+  <div class="fn-row">
+    <div class="fn-line">
+      <button type="button" class="fn-name" aria-expanded="false" aria-controls="tip-barrier_cost">barrier_cost</button><code class="fn-args">(u, u_max, r=1.0)</code>
+      <span class="fn-kind">function</span>
+    </div>
+    <p class="fn-brief">An actuator limit written as a smooth cost.</p>
+  </div>
+  <div class="tip" id="tip-barrier_cost">
+    <dl>
+      <dt>What it does</dt><dd>A strictly convex cost for the box <code>|u| ≤ u_max</code>: about <code>r u² / 2</code> near zero, finite at the limit with infinite slope there.</dd>
+      <dt>Why it matters</dt><dd>Puts the limit in the cost instead of in a clip, so Pontryagin&#x27;s principle still applies to the smoothed problem (see <code>PMPShooting</code>).</dd>
+      <dt class="warn">Where it stops</dt><dd class="warn">The shape depends on <code>r</code>. As <code>r → 0</code> the optimum approaches bang-bang, with the stiffness that brings.</dd>
+    </dl>
+    <div class="tip-foot">
+      <a class="tip-src" href="code/smooth.html#def-barrier_cost">Read the source</a>
+      <button type="button" class="tip-close">Close</button>
+    </div>
+  </div>
+</li>
+<li class="fn" id="fn-barrier_control">
+  <div class="fn-row">
+    <div class="fn-line">
+      <button type="button" class="fn-name" aria-expanded="false" aria-controls="tip-barrier_control">barrier_control</button><code class="fn-args">(g, u_max, r=1.0)</code>
+      <span class="fn-kind">function</span>
+    </div>
+    <p class="fn-brief">The best command under that cost, and it respects the limit.</p>
+  </div>
+  <div class="tip" id="tip-barrier_control">
+    <dl>
+      <dt>What it does</dt><dd><code>argmin_u [w(u) + g·u] = -u_max · tanh(g / (r · u_max))</code>, where <code>w</code> is <code>barrier_cost</code>.</dd>
+      <dt>Why it matters</dt><dd>A closed-form law that is smooth in <code>g</code> and never leaves the box.</dd>
+      <dt class="warn">Where it stops</dt><dd class="warn">Correct only for <code>barrier_cost</code>; a different cost has a different minimiser. Like <code>tanh_sat</code>, it never reaches the limit exactly.</dd>
+    </dl>
+    <div class="tip-foot">
+      <a class="tip-src" href="code/smooth.html#def-barrier_control">Read the source</a>
+      <button type="button" class="tip-close">Close</button>
+    </div>
+  </div>
+</li>
+<li class="fn" id="fn-smooth_always">
+  <div class="fn-row">
+    <div class="fn-line">
+      <button type="button" class="fn-name" aria-expanded="false" aria-controls="tip-smooth_always">smooth_always</button><code class="fn-args">(margins, eps)</code>
+      <span class="fn-kind">function</span>
+    </div>
+    <p class="fn-brief">Safety monitor, &quot;is every margin positive?&quot;, that errs towards caution.</p>
+  </div>
+  <div class="tip" id="tip-smooth_always">
+    <dl>
+      <dt>What it does</dt><dd>Smooth robustness of &quot;always h ≥ 0&quot; over samples: a soft minimum, which is never above the true minimum.</dd>
+      <dt>Why it matters</dt><dd>Sound by construction: a non-negative result means every sampled margin is non-negative. It can raise a false alarm, but it cannot certify a violated margin as safe.</dd>
+      <dt class="warn">Where it stops</dt><dd class="warn">Conservative by up to <code>eps · ln n</code>. Only as trustworthy as the margins fed in (sensors, model), and it checks sampled instants only, nothing between them.</dd>
+    </dl>
+    <div class="tip-foot">
+      <a class="tip-src" href="code/smooth.html#def-smooth_always">Read the source</a>
+      <button type="button" class="tip-close">Close</button>
+    </div>
+  </div>
+</li>
+<li class="fn" id="fn-smooth_eventually">
+  <div class="fn-row">
+    <div class="fn-line">
+      <button type="button" class="fn-name" aria-expanded="false" aria-controls="tip-smooth_eventually">smooth_eventually</button><code class="fn-args">(margins, eps)</code>
+      <span class="fn-kind">function</span>
+    </div>
+    <p class="fn-brief">Monitor, &quot;did it reach the goal at least once?&quot;</p>
+  </div>
+  <div class="tip" id="tip-smooth_eventually">
+    <dl>
+      <dt>What it does</dt><dd>Smooth robustness of &quot;eventually h ≥ 0&quot;: a soft maximum, which is never below the true maximum.</dd>
+      <dt>Why it matters</dt><dd>For recovery-type checks, such as &quot;pressure returned to range at some point&quot;.</dd>
+      <dt class="warn">Where it stops</dt><dd class="warn">Optimistic, the opposite of <code>smooth_always</code>: a slightly positive value can occur when the best margin was actually negative, by up to <code>eps · ln n</code>. Require a margin above that before trusting it.</dd>
+    </dl>
+    <div class="tip-foot">
+      <a class="tip-src" href="code/smooth.html#def-smooth_eventually">Read the source</a>
+      <button type="button" class="tip-close">Close</button>
+    </div>
+  </div>
+</li>
+  </ul>
+  <details class="try"><summary>Try it</summary><pre><code>import numpy as np
+from control import tanh_sat, smooth_always, smooth_eventually
+
+cmd = np.array([-50.0, -1.0, 0.0, 1.0, 50.0])
+print(float(np.abs(tanh_sat(cmd, limit=5.0)).max()) &lt;= 5.0)    # bounded for any input
+
+margins = np.array([0.9, 0.4, 0.05])           # distance to a limit at each sample
+print(round(float(smooth_always(margins, 0.01)), 4))           # never above min(margins)
+
+# smooth_eventually errs the other way: the best margin here is -0.002 (a miss),
+# yet the soft maximum is positive. Demand a margin larger than eps * ln n.
+print(round(float(smooth_eventually(np.array([-0.002, -0.004]), 0.01)), 4))</code></pre><p class="out">Prints:</p><pre class="output"><code>True
+0.05
+0.004</code></pre></details>
+</section><section class="group" id="mod-continuity" aria-labelledby="h-continuity">
+  <p class="role">Watch</p>
+  <h2 id="h-continuity">Find the jumps your logs already contain</h2>
+  <p class="mod"><code>control.continuity</code> &middot; <a href="code/continuity.html">read the module</a></p>
+  <p class="group-intro">Hard switches, clipping, thresholds and angle wrapping leave jumps and kinks in logged signals. This finds them in data you already have, so they can be replaced with the smooth versions above.</p>
+  <ul class="fns">
+<li class="fn" id="fn-find_breaks">
+  <div class="fn-row">
+    <div class="fn-line">
+      <button type="button" class="fn-name" aria-expanded="false" aria-controls="tip-find_breaks">find_breaks</button><code class="fn-args">(t, y, window=7, ratio=8.0, abs_tol=1e-09)</code>
+      <span class="fn-kind">function</span>
+    </div>
+    <p class="fn-brief">Scan a logged signal for jumps and kinks.</p>
+  </div>
+  <div class="tip" id="tip-find_breaks">
+    <dl>
+      <dt>What it does</dt><dd>Locates jumps in value (order 0) and kinks in slope (order 1) in a sampled signal <code>y(t)</code> and returns a list of <code>Break</code> records.</dd>
+      <dt>Why it matters</dt><dd>Discontinuities are where actuators get shocked and where models stop being valid. This points to the exact sample and time, so you can find the cause.</dd>
+      <dt class="warn">Where it stops</dt><dd class="warn">A heuristic: it compares each step with the median of its neighbours. Assumes near-uniform sampling. Rounded corners many samples wide are not reported. For noisy data, raise <code>abs_tol</code> to a few noise sigmas. A clean result is not a proof of smoothness.</dd>
+    </dl>
+    <div class="tip-foot">
+      <a class="tip-src" href="code/continuity.html#def-find_breaks">Read the source</a>
+      <button type="button" class="tip-close">Close</button>
+    </div>
+  </div>
+</li>
+<li class="fn" id="fn-Break">
+  <div class="fn-row">
+    <div class="fn-line">
+      <button type="button" class="fn-name" aria-expanded="false" aria-controls="tip-Break">Break</button><code class="fn-args">(index, time, order, size)</code>
+      <span class="fn-kind">class</span>
+    </div>
+    <p class="fn-brief">The record <code>find_breaks</code> returns.</p>
+  </div>
+  <div class="tip" id="tip-Break">
+    <dl>
+      <dt>What it does</dt><dd>A frozen dataclass with <code>index</code>, <code>time</code>, <code>order</code> (0 = jump, 1 = kink) and <code>size</code> (the signed jump height or slope change).</dd>
+      <dt>Why it matters</dt><dd>A plain record you can log, assert on or alarm on.</dd>
+      
+    </dl>
+    <div class="tip-foot">
+      <a class="tip-src" href="code/continuity.html#def-Break">Read the source</a>
+      <button type="button" class="tip-close">Close</button>
+    </div>
+  </div>
+</li>
+  </ul>
+  <details class="try"><summary>Try it</summary><pre><code>import numpy as np
+from control import find_breaks
+
+t = np.linspace(0, 10, 1001)
+y = np.sin(t)
+y[600:] += 0.5                    # a hidden step at t = 6.0
+for b in find_breaks(t, y):
+    print(b.order, round(b.time, 2), round(b.size, 2))     # order 0 = jump</code></pre><p class="out">Prints:</p><pre class="output"><code>0 6.0 0.51</code></pre></details>
+</section><section class="group" id="mod-pmp" aria-labelledby="h-pmp">
+  <p class="role">Plan</p>
+  <h2 id="h-pmp">Optimal manoeuvres, with the conditions written down</h2>
+  <p class="mod"><code>control.pmp</code> &middot; <a href="code/pmp.html">read the module</a></p>
+  <p class="group-intro">Pontryagin&#x27;s minimum principle turns &quot;find the best manoeuvre&quot; into conditions the best manoeuvre must satisfy. Solving them gives a trajectory and the costate behind it, so you can check the optimality conditions instead of trusting a black-box optimiser.</p>
+  <ul class="fns">
+<li class="fn" id="fn-PMPShooting">
+  <div class="fn-row">
+    <div class="fn-line">
+      <button type="button" class="fn-name" aria-expanded="false" aria-controls="tip-PMPShooting">PMPShooting</button><code class="fn-args">(f, L, u_star, n_state, H_x=None, fd_step=1e-06)</code>
+      <span class="fn-kind">class</span>
+    </div>
+    <p class="fn-brief">Plan an optimal manoeuvre by solving its necessary conditions.</p>
+  </div>
+  <div class="tip" id="tip-PMPShooting">
+    <dl>
+      <dt>What it does</dt><dd>Indirect shooting in Euclidean state space. Given dynamics <code>f</code>, running cost <code>L</code> and the minimiser <code>u_star</code>, <code>solve</code> finds the initial costate (and the final time, if free) that meets the terminal conditions. <code>continuation</code> re-solves while a smoothing width shrinks, warm-starting each solve.</dd>
+      <dt>Why it matters</dt><dd>It fails loudly. If the terminal residual is above 1e-6 it raises <code>RuntimeError</code> instead of returning a nearby, wrong trajectory.</dd>
+      <dt class="warn">Where it stops</dt><dd class="warn">Normal extremals only, a costate guess is needed, and there is no second-order (conjugate-point) test. A solution is a stationary candidate, not a proven global optimum. Kinks in <code>u_star</code> make shooting hard; use <code>barrier_control</code>.</dd>
+    </dl>
+    <div class="tip-foot">
+      <a class="tip-src" href="code/pmp.html#def-PMPShooting">Read the source</a>
+      <button type="button" class="tip-close">Close</button>
+    </div>
+  </div>
+</li>
+<li class="fn" id="fn-Extremal">
+  <div class="fn-row">
+    <div class="fn-line">
+      <button type="button" class="fn-name" aria-expanded="false" aria-controls="tip-Extremal">Extremal</button><code class="fn-args">(t, x, lam, u, H, cost, T, lam0, residual, dense)</code>
+      <span class="fn-kind">class</span>
+    </div>
+    <p class="fn-brief">What <code>PMPShooting.solve</code> returns.</p>
+  </div>
+  <div class="tip" id="tip-Extremal">
+    <dl>
+      <dt>What it does</dt><dd>A dataclass holding <code>t</code>, <code>x</code>, <code>lam</code>, <code>u</code>, the Hamiltonian <code>H</code>, the cost, the final time <code>T</code>, the initial costate <code>lam0</code>, the terminal <code>residual</code> and a dense output.</dd>
+      <dt>Why it matters</dt><dd>Carries two self-checks: <code>H</code> must stay constant along an autonomous extremal, and <code>residual</code> says how well the terminal conditions were met.</dd>
+      
+    </dl>
+    <div class="tip-foot">
+      <a class="tip-src" href="code/pmp.html#def-Extremal">Read the source</a>
+      <button type="button" class="tip-close">Close</button>
+    </div>
+  </div>
+</li>
+  </ul>
+  <details class="try"><summary>Try it</summary><pre><code>import numpy as np
+from control import PMPShooting
+
+# Minimum-energy, rest-to-rest move of a double integrator: x&#x27;&#x27; = u, cost = integral of u^2 / 2.
+f = lambda x, u: np.array([x[1], u[0]])
+L = lambda x, u: 0.5 * float(u @ u)
+u_star = lambda x, lam: np.array([-lam[1]])            # argmin of the Hamiltonian
+ext = PMPShooting(f, L, u_star, n_state=2).solve(x0=[0, 0], T=1.0, lam0=[0, 0], x_T=[1, 0])
+print(round(ext.cost, 4), ext.residual &lt; 1e-6)         # closed form: 6</code></pre><p class="out">Prints:</p><pre class="output"><code>6.0 True</code></pre></details>
+</section><section class="group" id="mod-geometric_pmp" aria-labelledby="h-geometric_pmp">
+  <p class="role">Plan</p>
+  <h2 id="h-geometric_pmp">Optimal rotation of a rigid body, without leaving SO(3)</h2>
+  <p class="mod"><code>control.geometric_pmp</code> &middot; <a href="code/geometric_pmp.html">read the module</a></p>
+  <p class="group-intro">The same principle for a rigid body&#x27;s orientation. The group part is reduced analytically (Lie-Poisson), so only nine equations are integrated and the rotation is rebuilt on the group afterwards.</p>
+  <ul class="fns">
+<li class="fn" id="fn-AttitudePMP">
+  <div class="fn-row">
+    <div class="fn-line">
+      <button type="button" class="fn-name" aria-expanded="false" aria-controls="tip-AttitudePMP">AttitudePMP</button><code class="fn-args">(J, u_max=None, r=1.0, time_weight=0.0)</code>
+      <span class="fn-kind">class</span>
+    </div>
+    <p class="fn-brief">Plan an optimal rotation of a rigid body, torque limits included.</p>
+  </div>
+  <div class="tip" id="tip-AttitudePMP">
+    <dl>
+      <dt>What it does</dt><dd>Geometric PMP on SO(3) × ℝ³. <code>solve(R0, RT, T)</code> finds the extremal from rest to rest by default. <code>u_max</code> adds a smooth torque bound, and <code>free_time=True</code> with <code>time_weight &gt; 0</code> also solves for the time. <code>control_at</code> gives the torque at any time.</dd>
+      <dt>Why it matters</dt><dd>For reorienting a spacecraft or any rigid platform with torque strictly inside its bounds. No Euler angles and no quaternion normalisation, so the rotation never leaves SO(3).</dd>
+      <dt class="warn">Where it stops</dt><dd class="warn">First-order optimal only. Large rotations may need <code>angle_steps &gt; 1</code> or continuation in <code>r</code>. Raises <code>RuntimeError</code> if shooting fails, and <code>ValueError</code> for <code>free_time</code> without a time penalty.</dd>
+    </dl>
+    <div class="tip-foot">
+      <a class="tip-src" href="code/geometric_pmp.html#def-AttitudePMP">Read the source</a>
+      <button type="button" class="tip-close">Close</button>
+    </div>
+  </div>
+</li>
+<li class="fn" id="fn-AttitudeExtremal">
+  <div class="fn-row">
+    <div class="fn-line">
+      <button type="button" class="fn-name" aria-expanded="false" aria-controls="tip-AttitudeExtremal">AttitudeExtremal</button><code class="fn-args">(t, R, W, Pi, p, u, H, cost, Pi0, p0, residual, dense)</code>
+      <span class="fn-kind">class</span>
+    </div>
+    <p class="fn-brief">What <code>AttitudePMP.solve</code> returns.</p>
+  </div>
+  <div class="tip" id="tip-AttitudeExtremal">
+    <dl>
+      <dt>What it does</dt><dd>A dataclass with the time grid, rotations <code>R</code>, rates <code>W</code>, costates <code>Pi</code> and <code>p</code>, torque <code>u</code>, Hamiltonian <code>H</code>, cost and terminal <code>residual</code>.</dd>
+      <dt>Why it matters</dt><dd>Same self-checks as <code>Extremal</code>: a constant <code>H</code> and a small <code>residual</code>.</dd>
+      
+    </dl>
+    <div class="tip-foot">
+      <a class="tip-src" href="code/geometric_pmp.html#def-AttitudeExtremal">Read the source</a>
+      <button type="button" class="tip-close">Close</button>
+    </div>
+  </div>
+</li>
+<li class="fn" id="fn-magnus_rotation">
+  <div class="fn-row">
+    <div class="fn-line">
+      <button type="button" class="fn-name" aria-expanded="false" aria-controls="tip-magnus_rotation">magnus_rotation</button><code class="fn-args">(R0, W_of_t, T, steps=200)</code>
+      <span class="fn-kind">function</span>
+    </div>
+    <p class="fn-brief">Integrate an angular-velocity history into an orientation, without drift.</p>
+  </div>
+  <div class="tip" id="tip-magnus_rotation">
+    <dl>
+      <dt>What it does</dt><dd>Solves <code>R&#x27; = R hat(W(t))</code> with fourth-order Magnus steps. Each step is a rotation, so <code>R</code> stays on SO(3) to machine precision.</dd>
+      <dt>Why it matters</dt><dd>Integrating rotation matrices with a generic ODE solver lets them drift off the rotation group. This keeps them rotations.</dd>
+      <dt class="warn">Where it stops</dt><dd class="warn"><code>W_of_t</code> must return shape <code>(3, len(times))</code>. Accuracy is fourth order in the step size and depends on how smooth <code>W</code> is.</dd>
+    </dl>
+    <div class="tip-foot">
+      <a class="tip-src" href="code/geometric_pmp.html#def-magnus_rotation">Read the source</a>
+      <button type="button" class="tip-close">Close</button>
+    </div>
+  </div>
+</li>
+  </ul>
+  <details class="try"><summary>Try it</summary><pre><code>import numpy as np
+from control import AttitudePMP, exp_so3
+
+pmp = AttitudePMP(np.diag([1.0, 2.0, 3.0]))
+ext = pmp.solve(np.eye(3), exp_so3([0.0, 0.0, 1.0]), T=2.0)    # rest to rest, 1 rad about z
+print(ext.residual &lt; 1e-6, float(np.ptp(ext.H)) &lt; 1e-6)        # met the target; H constant</code></pre><p class="out">Prints:</p><pre class="output"><code>True True</code></pre></details>
+</section>
+
+<aside class="notice">
+  <h2>Read before relying on it</h2>
+  <p>These panels describe what the code does and what its tests show. They are not a safety case. Check every
+  function against your own system, with your own limits, before it sits between a fault and a consequence.</p>
+</aside>
+</main>
+<footer>
+  <p>coh-thread &middot; a foundation for high-consequence operations &middot;
+     <a href="mailto:realsaimohanty@gmail.com">realsaimohanty@gmail.com</a> &middot; <a href="code/index.html">read the source</a></p>
+  <p>Research-grade, uncertified code. Use it as one layer of protection, never the only one.</p>
+</footer>
+<script>
+(function () {
+  var items = Array.prototype.slice.call(document.querySelectorAll(".fn"));
+  if (!items.length) return;
+  function st(li) { return li._s || (li._s = { hover: false, focus: false, pin: false }); }
+  function place(li) {
+    li.classList.remove("up");
+    var tip = li.querySelector(".tip").getBoundingClientRect();
+    if (tip.bottom > window.innerHeight - 8) {
+      var row = li.querySelector(".fn-row").getBoundingClientRect();
+      if (row.top > tip.height + 8) li.classList.add("up");
+    }
+  }
+  function refresh(li) {
+    var s = st(li), on = s.hover || s.focus || s.pin, was = li.classList.contains("show");
+    li.classList.toggle("show", on);
+    li.querySelector(".fn-name").setAttribute("aria-expanded", on ? "true" : "false");
+    // Place a panel only when it opens. Re-placing an open one can make it jump under the pointer.
+    if (on && !was) place(li);
+  }
+  function closeAll(except) {
+    items.forEach(function (li) {
+      var s = st(li);
+      if (li !== except && (s.hover || s.focus || s.pin)) { s.hover = s.focus = s.pin = false; refresh(li); }
+    });
+  }
+  items.forEach(function (li) {
+    var s = st(li), btn = li.querySelector(".fn-name");
+    li.addEventListener("pointerenter", function (e) { if (e.pointerType === "mouse") { s.hover = true; refresh(li); } });
+    li.addEventListener("pointerleave", function (e) { if (e.pointerType === "mouse") { s.hover = false; refresh(li); } });
+    li.addEventListener("focusin", function () { if (li._quiet) return; s.focus = true; refresh(li); });
+    li.addEventListener("focusout", function (e) { if (!li.contains(e.relatedTarget)) { s.focus = false; refresh(li); } });
+    // A click pins the panel open (touch and keyboard users), a second click closes it.
+    btn.addEventListener("click", function () {
+      if (s.pin) { s.hover = s.focus = s.pin = false; btn.blur(); }
+      else { closeAll(li); s.pin = true; }
+      refresh(li);
+    });
+    // The Close button is the way out on touch screens, where a panel can cover the rows below it.
+    li.querySelector(".tip-close").addEventListener("click", function () {
+      s.hover = s.focus = s.pin = false;
+      li._quiet = true; btn.focus(); li._quiet = false;
+      refresh(li);
+    });
+  });
+  document.addEventListener("click", function (e) { if (!e.target.closest(".fn")) closeAll(null); });
+  document.addEventListener("keydown", function (e) { if (e.key === "Escape") closeAll(null); });
+})();
+</script>
+</body>
+</html>

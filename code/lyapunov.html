@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>lyapunov.py | coh-thread</title>
+
+<script>document.documentElement.className += " js";</script>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=IBM+Plex+Sans:wght@400;500&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../style.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<nav class="top">
+  <a class="mark" href="../index.html">coh-thread</a>
+  <span class="links">
+    <a href="../library.html">Library</a>
+    <a href="../notes/index.html">Notes</a>
+    <a href="../code/index.html">Code</a>
+    <a href="../overview.html">Overview</a>
+    <a href="../index.html#contact">Contact</a>
+    
+  </span>
+</nav>
+<main id="main">
+<h1>lyapunov.py</h1><p class="lede">Lyapunov tools: stability certificates, LQR and energy-based control.</p><pre><code>&quot;&quot;&quot;Lyapunov tools: stability certificates, LQR and energy-based control.&quot;&quot;&quot;
+import numpy as np
+from scipy.linalg import solve_continuous_are, solve_continuous_lyapunov
+
+from .smooth import bump_step, tanh_sat
+
+
+<span id="def-is_hurwitz"></span>def is_hurwitz(A):
+    &quot;&quot;&quot;True if every eigenvalue of A has strictly negative real part.&quot;&quot;&quot;
+    return bool(np.all(np.linalg.eigvals(np.atleast_2d(A)).real &lt; 0.0))
+
+
+<span id="def-lyapunov_equation"></span>def lyapunov_equation(A, Q):
+    &quot;&quot;&quot;Solve A^T P + P A = -Q for P. For Hurwitz A and Q &gt; 0, P &gt; 0 and
+    V(x) = x^T P x is a quadratic Lyapunov function for x&#x27; = A x.&quot;&quot;&quot;
+    A = np.atleast_2d(A)
+    if not is_hurwitz(A):
+        raise ValueError(&quot;A is not Hurwitz; no quadratic Lyapunov function exists for this Q.&quot;)
+    return solve_continuous_lyapunov(A.T, -np.atleast_2d(Q))
+
+
+<span id="def-lqr"></span>def lqr(A, B, Q, R):
+    &quot;&quot;&quot;Continuous-time LQR. Returns gain K (u = -K x) and the Riccati solution P.
+
+    V(x) = x^T P x is a Lyapunov function of the closed loop A - B K.
+    &quot;&quot;&quot;
+    A, B, Q, R = map(np.atleast_2d, (A, B, Q, R))
+    P = solve_continuous_are(A, B, Q, R)
+    K = np.linalg.solve(R, B.T @ P)
+    return K, P
+
+
+<span id="def-check_vdot_negative"></span>def check_vdot_negative(f, V_grad, samples, tol=1e-9):
+    &quot;&quot;&quot;Numerically test V-dot = grad V(x) . f(x) &lt; 0 on sample points.
+
+    This is a falsification test, not a proof: it can reveal violations but
+    cannot certify the whole region. Returns (ok, worst_value, worst_point).
+    &quot;&quot;&quot;
+    worst, worst_x = -np.inf, None
+    for x in samples:
+        x = np.asarray(x, dtype=float)
+        if np.linalg.norm(x) &lt; 1e-12:
+            continue
+        vdot = float(np.dot(V_grad(x), f(x)))
+        if vdot &gt; worst:
+            worst, worst_x = vdot, x
+    return worst &lt; -tol, worst, worst_x
+
+
+<span id="def-PendulumSwingUp"></span>class PendulumSwingUp:
+    &quot;&quot;&quot;Torque-limited pendulum, angle theta measured from the upright position.
+
+        m l^2 theta&#x27;&#x27; = m g l sin(theta) + u
+
+    Energy E = 1/2 m l^2 theta&#x27;^2 + m g l (cos(theta) - 1) is zero at the upright
+    equilibrium. With V = E^2 / 2 and u = -k E theta&#x27; we get V-dot = -k E^2 theta&#x27;^2 &lt;= 0,
+    which pumps energy toward E = 0. Near the top the controller hands over to
+    LQR on the linearisation.
+
+    With blend_width = 0 the hand-over is a hard switch at |theta| = catch_angle and the
+    torque limit is a clip, so u(t) has jumps and kinks. With blend_width &gt; 0 the two
+    laws are blended by a C-infinity step over [catch_angle - blend_width, catch_angle]
+    (exactly LQR inside, exactly the pump outside) and the clip becomes a tanh saturation.
+    &quot;&quot;&quot;
+
+    def __init__(self, m=1.0, l=1.0, g=9.81, k=2.0, u_max=3.0, catch_angle=0.35,
+                 blend_width=0.0):
+        self.m, self.l, self.g = m, l, g
+        self.k, self.u_max, self.catch_angle = k, u_max, catch_angle
+        self.blend_width = blend_width
+        A = np.array([[0.0, 1.0], [g / l, 0.0]])
+        B = np.array([[0.0], [1.0 / (m * l**2)]])
+        self.K, _ = lqr(A, B, np.diag([10.0, 1.0]), np.array([[1.0]]))
+
+    @staticmethod
+    def wrap(theta):
+        return (theta + np.pi) % (2.0 * np.pi) - np.pi
+
+    def energy(self, theta, omega):
+        return (0.5 * self.m * self.l**2 * omega**2
+                + self.m * self.g * self.l * (np.cos(theta) - 1.0))
+
+    def control(self, theta, omega):
+        th = self.wrap(theta)
+        u_lqr = float(-(self.K @ np.array([th, omega]))[0])
+        u_pump = -self.k * self.energy(th, omega) * omega
+        if self.blend_width &lt;= 0.0:
+            u = u_lqr if abs(th) &lt; self.catch_angle else u_pump
+            return float(np.clip(u, -self.u_max, self.u_max))
+        w = float(bump_step((abs(th) - (self.catch_angle - self.blend_width)) / self.blend_width))
+        return float(tanh_sat((1.0 - w) * u_lqr + w * u_pump, self.u_max))
+
+    def dynamics(self, state, u):
+        theta, omega = state
+        domega = (self.m * self.g * self.l * np.sin(theta) + u) / (self.m * self.l**2)
+        return np.array([omega, domega])
+
+    def simulate(self, state0, T=20.0, dt=0.002):
+        &quot;&quot;&quot;RK4 closed-loop simulation. Returns an array of [t, theta, omega, u].&quot;&quot;&quot;
+        s = np.asarray(state0, dtype=float)
+        out = []
+        for i in range(int(T / dt)):
+            u = self.control(s[0], s[1])
+            out.append([i * dt, s[0], s[1], u])
+            k1 = self.dynamics(s, u)
+            k2 = self.dynamics(s + 0.5 * dt * k1, u)
+            k3 = self.dynamics(s + 0.5 * dt * k2, u)
+            k4 = self.dynamics(s + dt * k3, u)
+            s = s + dt / 6.0 * (k1 + 2 * k2 + 2 * k3 + k4)
+        return np.array(out)
+</code></pre>
+</main>
+<footer>
+  <p>coh-thread &middot; a foundation for high-consequence operations &middot;
+     <a href="mailto:realsaimohanty@gmail.com">realsaimohanty@gmail.com</a> &middot; <a href="../code/index.html">read the source</a></p>
+  <p>Research-grade, uncertified code. Use it as one layer of protection, never the only one.</p>
+</footer>
+
+</body>
+</html>

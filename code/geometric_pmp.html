@@ -1,0 +1,225 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>geometric_pmp.py | coh-thread</title>
+
+<script>document.documentElement.className += " js";</script>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,800&family=IBM+Plex+Sans:wght@400;500&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="stylesheet" href="../style.css">
+</head>
+<body>
+<a class="skip" href="#main">Skip to content</a>
+<nav class="top">
+  <a class="mark" href="../index.html">coh-thread</a>
+  <span class="links">
+    <a href="../library.html">Library</a>
+    <a href="../notes/index.html">Notes</a>
+    <a href="../code/index.html">Code</a>
+    <a href="../overview.html">Overview</a>
+    <a href="../index.html#contact">Contact</a>
+    
+  </span>
+</nav>
+<main id="main">
+<h1>geometric_pmp.py</h1><p class="lede">Geometric Pontryagin principle for rigid-body attitude (SO(3) x R^3), left-trivialised.</p><pre><code>&quot;&quot;&quot;Geometric Pontryagin principle for rigid-body attitude (SO(3) x R^3), left-trivialised.
+
+Dynamics:  R&#x27; = R hat(W),   J W&#x27; = (J W) x W + u        (body frame, u = torque)
+Cost:      int  L(u) dt,   L = (r/2)|u|^2, or sum_i w_r(u_i) with a smooth torque bound.
+
+The costate of the state (R, W) is a pair (Pi, p), both in R^3: Pi in so(3)* for
+the group, p for the angular velocity. The Hamiltonian
+
+    H = L(u) + Pi . W + p . J^-1 ((J W) x W + u)
+
+does not depend on R (the problem is left-invariant), so the group part reduces
+by Lie-Poisson: Pi&#x27; = ad*_W Pi = Pi x W. The remaining equations are canonical:
+
+    W&#x27;  =  dH/dp  =  J^-1 ((J W) x W + u*)
+    p&#x27;  = -dH/dW  = -Pi + (J W) x g - J (W x g),   g = J^-1 p
+    Pi&#x27; =  Pi x W
+    u*  =  argmin_u H  =  -g / r       (or the smooth saturation, see smooth.barrier_control)
+
+These nine equations are closed in (W, Pi, p) and never involve R. The rotation
+is recovered afterwards by integrating R&#x27; = R hat(W(t)) on the group with a
+fourth-order Magnus step, so R stays on SO(3) to machine precision.
+
+For J = j I the cross terms in p&#x27; cancel, giving p&#x27; = -Pi and W&#x27;&#x27;&#x27; = W&#x27;&#x27; x W, the
+Riemannian-cubic equation of the bi-invariant metric on SO(3).
+&quot;&quot;&quot;
+from dataclasses import dataclass, field
+
+import numpy as np
+from scipy.integrate import solve_ivp
+from scipy.optimize import root
+
+from .smooth import barrier_control, barrier_cost
+from .so3 import exp_so3, log_so3
+
+_GAUSS = np.sqrt(3.0) / 6.0
+
+
+<span id="def-_cross"></span>def _cross(a, b):
+    &quot;&quot;&quot;3-vector cross product; several times faster than np.cross for single vectors.&quot;&quot;&quot;
+    return np.array([a[1] * b[2] - a[2] * b[1],
+                     a[2] * b[0] - a[0] * b[2],
+                     a[0] * b[1] - a[1] * b[0]])
+
+
+<span id="def-magnus_rotation"></span>def magnus_rotation(R0, W_of_t, T, steps=200):
+    &quot;&quot;&quot;Integrate R&#x27; = R hat(W(t)) from R0 over [0, T] with 4th-order Magnus steps.
+    W_of_t(times) must return an array of shape (3, len(times)). Returns R(T).&quot;&quot;&quot;
+    h = T / steps
+    t0 = np.arange(steps) * h
+    W1 = W_of_t(t0 + (0.5 - _GAUSS) * h)
+    W2 = W_of_t(t0 + (0.5 + _GAUSS) * h)
+    R = np.array(R0, dtype=float)
+    for k in range(steps):
+        omega = 0.5 * h * (W1[:, k] + W2[:, k]) + (np.sqrt(3.0) * h * h / 12.0) * _cross(W1[:, k], W2[:, k])
+        R = R @ exp_so3(omega)
+    return R
+
+
+@dataclass
+<span id="def-AttitudeExtremal"></span>class AttitudeExtremal:
+    t: np.ndarray
+    R: np.ndarray            # (N, 3, 3)
+    W: np.ndarray            # (N, 3)
+    Pi: np.ndarray
+    p: np.ndarray
+    u: np.ndarray
+    H: np.ndarray
+    cost: float
+    Pi0: np.ndarray
+    p0: np.ndarray
+    residual: float
+    dense: object = field(repr=False, default=None)
+
+
+<span id="def-AttitudePMP"></span>class AttitudePMP:
+    def __init__(self, J, u_max=None, r=1.0, time_weight=0.0):
+        &quot;&quot;&quot;u_max=None: quadratic cost (r/2)|u|^2. With u_max the cost is the smooth box
+        barrier w_r, so every torque component stays strictly inside |u_i| &lt; u_max.
+
+        time_weight adds a constant running cost (time_weight * T in total). It is what
+        makes r a genuine smoothing width: for fixed T and no time term, r only scales
+        the whole cost and the extremal does not depend on it. With free_time=True in
+        solve() and a bound u_max, r -&gt; 0 approaches the bang-bang minimum-time law.&quot;&quot;&quot;
+        self.J = np.asarray(J, dtype=float)
+        self.Jinv = np.linalg.inv(self.J)
+        self.u_max, self.r, self.time_weight = u_max, r, time_weight
+
+    # ---- Hamiltonian pieces -------------------------------------------------
+    def control(self, p):
+        g = self.Jinv @ p
+        return -g / self.r if self.u_max is None else barrier_control(g, self.u_max, self.r)
+
+    def running_cost(self, u):
+        if self.u_max is None:
+            return 0.5 * self.r * float(u @ u)
+        return float(np.sum(barrier_cost(u, self.u_max, self.r)))
+
+    def hamiltonian(self, W, Pi, p, u):
+        g = self.Jinv @ p
+        return (self.time_weight + self.running_cost(u) + float(Pi @ W)
+                + float(g @ (_cross(self.J @ W, W) + u)))
+
+    def reduced_rhs(self, y):
+        &quot;&quot;&quot;y = [W, Pi, p, cost]; returns y&#x27;.&quot;&quot;&quot;
+        W, Pi, p = y[0:3], y[3:6], y[6:9]
+        g = self.Jinv @ p
+        u = self.control(p)
+        return np.concatenate([
+            self.Jinv @ (_cross(self.J @ W, W) + u),
+            _cross(Pi, W),
+            -Pi + _cross(self.J @ W, g) - self.J @ _cross(W, g),
+            [self.running_cost(u)],
+        ])
+
+    # ---- shooting -----------------------------------------------------------
+    def _integrate(self, W0, Pi0, p0, T, dense=False):
+        y0 = np.concatenate([W0, Pi0, p0, [0.0]])
+        return solve_ivp(lambda t, y: self.reduced_rhs(y), (0.0, T), y0, method=&quot;DOP853&quot;,
+                         rtol=1e-10, atol=1e-12, dense_output=dense)
+
+    def _terminal(self, R0, RT, W0, WT, Pi0, p0, T, steps, free_time):
+        sol = self._integrate(W0, Pi0, p0, T, dense=True)
+        n_res = 7 if free_time else 6
+        if not sol.success or not np.all(np.isfinite(sol.y)):
+            return np.full(n_res, 1e6)
+        R_end = magnus_rotation(R0, lambda t: sol.sol(t)[0:3], T, steps)
+        res = np.concatenate([log_so3(RT.T @ R_end), sol.y[0:3, -1] - WT])
+        if free_time:
+            W, Pi, p = sol.y[0:3, -1], sol.y[3:6, -1], sol.y[6:9, -1]
+            res = np.append(res, self.hamiltonian(W, Pi, p, self.control(p)))
+        return res
+
+    def guess(self, R0, RT, T):
+        &quot;&quot;&quot;Costates of the small-rotation (double integrator) solution.&quot;&quot;&quot;
+        d = log_so3(R0.T @ RT)
+        J2 = self.J @ self.J
+        return -12.0 * self.r * J2 @ d / T**3, -6.0 * self.r * J2 @ d / T**2
+
+    def solve(self, R0, RT, T, W0=None, WT=None, guess=None, steps=200, n_out=201,
+              tol=1e-10, angle_steps=1, free_time=False):
+        &quot;&quot;&quot;Extremal from (R0, W0) to (RT, WT) in time T (rest to rest by default).
+
+        angle_steps &gt; 1 reaches the target by continuation: the target rotation is
+        R0 exp(s log(R0^T RT)) for s increasing to 1, each solve warm-started.
+        free_time=True treats T as an initial guess and adds the unknown final time
+        with the condition H(T) = 0; it needs time_weight &gt; 0. `guess` may then be
+        (Pi0, p0) as before, and the returned extremal carries the solved time in .t[-1].&quot;&quot;&quot;
+        if free_time and self.time_weight &lt;= 0.0:
+            raise ValueError(&quot;free_time needs time_weight &gt; 0, otherwise T is unbounded&quot;)
+        R0, RT = np.asarray(R0, dtype=float), np.asarray(RT, dtype=float)
+        W0 = np.zeros(3) if W0 is None else np.asarray(W0, dtype=float)
+        WT = np.zeros(3) if WT is None else np.asarray(WT, dtype=float)
+        d = log_so3(R0.T @ RT)
+        z = np.concatenate(self.guess(R0, R0 @ exp_so3(d / angle_steps), T)) if guess is None \
+            else np.concatenate(guess)
+        if free_time:
+            z = np.append(z, np.log(T))
+
+        def horizon(zz):
+            return float(np.exp(zz[6])) if free_time else float(T)
+
+        for k in range(1, angle_steps + 1):
+            target = RT if k == angle_steps else R0 @ exp_so3(d * k / angle_steps)
+            fun = lambda zz, tg=target: self._terminal(R0, tg, W0, WT, zz[:3], zz[3:6],
+                                                       horizon(zz), steps, free_time)
+            z = root(fun, z, method=&quot;hybr&quot;, tol=tol).x
+        r_norm = float(np.linalg.norm(fun(z)))
+        if r_norm &gt; 1e-6:
+            raise RuntimeError(f&quot;attitude shooting did not converge (residual {r_norm:.2e}); &quot;
+                               &quot;try angle_steps &gt; 1 or a continuation in r&quot;)
+        return self._extremal(R0, W0, z[:3], z[3:6], horizon(z), steps, n_out, r_norm)
+
+    def _extremal(self, R0, W0, Pi0, p0, T, steps, n_out, r_norm):
+        sol = self._integrate(W0, Pi0, p0, T, dense=True)
+        t = np.linspace(0.0, T, n_out)
+        y = sol.sol(t)
+        W, Pi, p = y[0:3].T, y[3:6].T, y[6:9].T
+        u = np.array([self.control(pi) for pi in p])
+        H = np.array([self.hamiltonian(w, a, b, c) for w, a, b, c in zip(W, Pi, p, u)])
+        Rs = [np.array(R0, dtype=float)]
+        for k in range(1, n_out):
+            Rs.append(magnus_rotation(Rs[-1], lambda s, k=k: sol.sol(s + t[k - 1])[0:3],
+                                      t[k] - t[k - 1], max(2, steps // (n_out - 1) + 2)))
+        return AttitudeExtremal(t=t, R=np.array(Rs), W=W, Pi=Pi, p=p, u=u, H=H,
+                                cost=float(y[9, -1]), Pi0=Pi0, p0=p0, residual=r_norm,
+                                dense=sol.sol)
+
+    def control_at(self, extremal, t):
+        &quot;&quot;&quot;Optimal torque u(t) from the extremal&#x27;s dense output.&quot;&quot;&quot;
+        return self.control(extremal.dense(t)[6:9])
+</code></pre>
+</main>
+<footer>
+  <p>coh-thread &middot; a foundation for high-consequence operations &middot;
+     <a href="mailto:realsaimohanty@gmail.com">realsaimohanty@gmail.com</a> &middot; <a href="../code/index.html">read the source</a></p>
+  <p>Research-grade, uncertified code. Use it as one layer of protection, never the only one.</p>
+</footer>
+
+</body>
+</html>
